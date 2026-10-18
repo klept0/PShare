@@ -6,12 +6,14 @@
 
 #include "pshare/core/config.hpp"
 
+#include "third_party/jxrlib/pshare_jxr.h"
 #define STBI_NO_STDIO
 #include "third_party/stb_image/stb_image.h"
 #define STBI_WRITE_NO_STDIO
 #include "third_party/stb_image/stb_image_write.h"
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace pshare
 {
@@ -91,6 +93,17 @@ bool decode_picture_bytes(const std::string &bytes, int max_width, int max_heigh
         return false;
     int width = 0;
     int height = 0;
+    // JPEG XR: the PS5's HDR screenshots, tone-mapped to sRGB by jxrlib's glue.
+    const auto *raw = reinterpret_cast<const unsigned char *>(bytes.data());
+    if (pshare_jxr_is(raw, bytes.size()))
+    {
+        unsigned char *rgba = pshare_jxr_decode(raw, bytes.size(), &width, &height);
+        if (rgba == nullptr)
+            return false;
+        *picture = shrink_pixels({rgba, width, height}, max_width, max_height);
+        std::free(rgba);
+        return picture->width > 0;
+    }
     int channels = 0;
     stbi_uc *pixels =
         stbi_load_from_memory(reinterpret_cast<const stbi_uc *>(bytes.data()),

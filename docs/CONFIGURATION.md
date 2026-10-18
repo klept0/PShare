@@ -99,6 +99,7 @@ Written by the app for its own choices:
 | `delete-after-send.txt` | captures sent with "Delete from the console once sent" that pshared could not delete; PShare deletes them when it runs |
 | `onedrive-<id>.token` | the newest refresh token Microsoft handed back for that OneDrive destination; delete it to go back to the one in the config |
 | `thumbs/` | the app's thumbnail cache; safe to delete |
+| `web-jpeg/` | JPEG copies of HDR (`.jxr`) screenshots for the browser page; safe to delete |
 
 > [!CAUTION]
 > A webhook URL, bot token or refresh token is as good as a password: anyone who has it can post to your channel. Leave it out of bug reports and screenshots.

@@ -140,14 +140,16 @@ UploadOutcome upload_capture_with(const Config &config, const Destination &desti
                                   UploadProgress *progress, Transport transport, void *user,
                                   bool pause_between_tries);
 
-// Telegram photos. Telegram takes a photo of at most 10 MB and shows it at
-// most 2560 px on its long side. A bigger screenshot goes twice: a JPEG copy
+// Photo copies. Telegram takes a photo of at most 10 MB and shows it at most
+// 2560 px on its long side, and no chat or host shows JPEG XR. A screenshot
+// over the limit, or an HDR one (.jxr), goes to Telegram twice: a JPEG copy
 // at that size as a photo, so it is in the chat's photos, and the original as
-// a file, captioned "Full size". make_telegram_photo() writes the copy (false
-// when the screenshot cannot be read; it then goes as a file only).
+// a file, captioned "Full size". Discord gets the copy with the original
+// attached, and file hosts the copy alone. make_photo_copy() writes the copy
+// (false when the screenshot cannot be read; the original then goes alone).
 constexpr int kTelegramPhotoSide = 2560;
 bool needs_photo_copy(const Destination &destination, const MediaItem &item);
-bool make_telegram_photo(const MediaItem &item, const std::string &target, MediaItem *photo);
+bool make_photo_copy(const MediaItem &item, const std::string &target, MediaItem *photo);
 
 // Telegram albums. A "Send all" sends up to kAlbumSize captures for one chat
 // as a single sendMediaGroup message, each with its own caption, instead of
