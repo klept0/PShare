@@ -36,7 +36,7 @@ Keys every destination accepts:
 
 | Key | |
 | --- | --- |
-| `type` | `discord`, `telegram`, `catbox`, `litterbox`, `http`, `folder` or `smb` |
+| `type` | `discord`, `telegram`, `catbox`, `litterbox`, `http`, `folder`, `smb` or `onedrive` |
 | `name` | shown in the app |
 | `enabled` | `false` hides it without deleting it |
 | `message` | caption template (see placeholders below) |
@@ -58,6 +58,7 @@ fallback's link, when there is one).
 | `http` | `url`, `field` the form field carrying the file (default `file`), any number of `header = Name: value` lines and `form.<name> = value` extra fields. The link is read from the response |
 | `folder` | `path` `usb` (the first USB drive found) or an absolute folder. Files land in `<folder>/PShare/<game>/` |
 | `smb` | `url` `smb://<pc or mac>/<share>/<folder>`, `username`, `token` the account's password. SMB 2/3: a Windows share, macOS File Sharing (turn on **Windows File Sharing** for the account under Options) or Samba |
+| `onedrive` | `client_id` the Application (client) ID of your app registration, `token` a refresh token for it (see the README's OneDrive guide), `path` the OneDrive folder (default `PShare`). Files land in `<path>/<game>/`; a name already there gets a new one rather than being replaced |
 
 The default file includes several hosts that need no account: catbox.moe,
 Litterbox, Uguu, tmpfiles.org, temp.sh, x0.at and Gofile. How long they keep
@@ -95,6 +96,7 @@ Written by the app for its own choices:
 | `history.tsv` | one line per upload, from the app and from pshared |
 | `pshared.log` | pshared's log |
 | `pshared-seen.txt` | captures pshared has already handled |
+| `onedrive-<id>.token` | the newest refresh token Microsoft handed back for that OneDrive destination; delete it to go back to the one in the config |
 | `thumbs/` | the app's thumbnail cache; safe to delete |
 
 ## Example
@@ -123,5 +125,5 @@ path = usb
 PPSA01234 = telegram
 ```
 
-A webhook URL or bot token is as good as a password: anyone who has it can
+A webhook URL, bot token or refresh token is as good as a password: anyone who has it can
 post to your channel. Leave it out of bug reports and screenshots.

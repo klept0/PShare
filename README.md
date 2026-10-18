@@ -13,7 +13,7 @@
 
 **PShare sends your PS5 captures where you want them, the moment you take
 them.** Take a screenshot or save a clip with the Create button and PShare
-sends it to Discord, Telegram, catbox.moe, a USB drive, a shared folder
+sends it to Discord, Telegram, catbox.moe, OneDrive, a USB drive, a shared folder
 on your PC or Mac or a dozen other places, automatically and in the background, even
 after you close the app. It doubles as a media gallery: browse every capture
 by game, watch clips with sound, and open anything on your phone from a QR
@@ -45,7 +45,7 @@ code.
   new screenshot and clip, waits until a clip has finished writing, and sends
   it. It keeps running after PShare closes.
 - **Many destinations.** Discord webhooks, Telegram bots, catbox.moe,
-  Litterbox, any multipart HTTP endpoint, a USB drive or console folder, and PC or Mac shares over SMB 2/3. Account-free hosts
+  Litterbox, any multipart HTTP endpoint, a USB drive or console folder, PC or Mac shares over SMB 2/3, and OneDrive. Account-free hosts
   (Uguu, tmpfiles.org, temp.sh, x0.at, Gofile) are set up out of the box.
 - **Smart routing.** Per-game destinations, size limits with fallbacks (a
   40 MB clip goes to catbox and Discord gets the link), and destinations that
@@ -136,6 +136,47 @@ Both work without an account and are ready out of the box.
 Account-free hosts, set up out of the box. Turn one on, or pick it as the
 default or as Discord's **Big files go to**. How long each keeps files is up
 to the host (the app shows it in the name).
+</details>
+
+<details>
+<summary><b>OneDrive</b></summary>
+
+OneDrive needs an app registration of your own (free) and a refresh token
+for it. Do this once, on a PC or Mac:
+
+1. Sign in to [portal.azure.com](https://portal.azure.com) with your
+   Microsoft account and open **Microsoft Entra ID › App registrations › New
+   registration**. If the portal asks you to set up a directory or a free
+   Azure account first, do that; app registrations need one.
+2. Name it `PShare`, choose **Accounts in any organizational directory and
+   personal Microsoft accounts**, leave the redirect URI empty and
+   **Register**. Copy the **Application (client) ID** from its overview.
+3. Open **Authentication**, set **Allow public client flows** to **Yes** and
+   save.
+4. In a terminal (on Windows type `curl.exe`, not `curl`), ask for a sign-in
+   code, with your client ID:
+
+   ```sh
+   curl -d client_id=<client ID> -d "scope=Files.ReadWrite offline_access" https://login.microsoftonline.com/common/oauth2/v2.0/devicecode
+   ```
+
+5. Open [microsoft.com/devicelogin](https://microsoft.com/devicelogin), enter
+   the `user_code` from the answer, sign in and accept. Then, within 15
+   minutes, with the `device_code` from the same answer:
+
+   ```sh
+   curl -d client_id=<client ID> -d grant_type=urn:ietf:params:oauth:grant-type:device_code -d device_code=<device_code> https://login.microsoftonline.com/common/oauth2/v2.0/token
+   ```
+
+6. Copy the `refresh_token` value (everything between its quotes). On the
+   setup page, under **OneDrive**, paste the **Client ID** and **Refresh
+   token**, pick a **Folder in OneDrive** (`PShare` by default) and turn it
+   on. Then use **Send a test** in the app.
+
+Captures land in `<folder>/<game>/`. PShare keeps the sign-in fresh by
+itself (in `/data/pshare/onedrive-<id>.token`); if OneDrive goes unused for
+about 90 days, or you change your password, repeat steps 4–6. Treat the
+refresh token like a password.
 </details>
 
 <details>
