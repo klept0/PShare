@@ -19,6 +19,7 @@
 #include "pshare/core/history.hpp"
 #include "pshare/core/media.hpp"
 #include "pshare/core/net.hpp"
+#include "pshare/core/picture.hpp"
 #include "pshare/core/setup_web.hpp"
 #include "pshare/core/text.hpp"
 #include "pshare/core/upload.hpp"
@@ -659,6 +660,8 @@ std::vector<GalleryItem> gallery_items(const Paths &paths, TitleNames *names, in
         item.when = capture.captured.date() + " " + capture.captured.time();
         item.size = human_size(capture.size);
         item.video = capture.video();
+        item.picture = capture.web_image();
+        item.hdr = capture.jxr();
         out.push_back(std::move(item));
     }
     return out;
@@ -703,6 +706,34 @@ WebReply serve(const Paths &paths, const WebRequest &request, TitleNames *names)
             reply.text = web_response(404, "text/plain", "Not a capture");
             return reply;
         }
+        // An HDR screenshot, as a JPEG a browser can show ("jpeg" = its width),
+        // made once and kept in web-jpeg/; "dl" still gets the original.
+        const auto jpeg = request.query.find("jpeg");
+        if (item.jxr() && jpeg != request.query.end() && request.query.count("dl") == 0)
+        {
+            const int side = static_cast<int>(
+                std::clamp<long long>(parse_int(jpeg->second, 480), 160, kTelegramPhotoSide));
+            char name[64];
+            std::snprintf(
+                name, sizeof(name), "/%016llx-%d.jpg",
+                static_cast<unsigned long long>(fnv1a(item.path + "|" + std::to_string(item.size) +
+                                                      "|" + std::to_string(item.mtime))),
+                side);
+            const std::string cache = paths.data_root + "/web-jpeg";
+            std::string bytes;
+            if (!read_text_file(cache + name, &bytes))
+            {
+                Picture picture;
+                if (decode_picture(item.path, side, side, &picture))
+                    bytes = encode_jpeg(picture, 85);
+                if (!bytes.empty() && ensure_directory(cache))
+                    (void)write_text_file_atomic(cache + name, bytes);
+            }
+            reply.text = bytes.empty()
+                             ? web_response(404, "text/plain", "This picture can't be shown")
+                             : web_response(200, "image/jpeg", bytes);
+            return reply;
+        }
         reply.stream_path = item.path;
         reply.download = request.query.count("dl") != 0;
         const auto range = request.headers.find("range");
@@ -733,6 +764,8 @@ WebReply serve(const Paths &paths, const WebRequest &request, TitleNames *names)
         info.item.when = capture.captured.date() + " " + capture.captured.time();
         info.item.size = human_size(capture.size);
         info.item.video = capture.video();
+        info.item.picture = capture.web_image();
+        info.item.hdr = capture.jxr();
         if (capture_reads_blank(capture.path))
         {
             std::lock_guard<std::mutex> lock(g_shared.mutex);

@@ -409,6 +409,15 @@ restart PShare. The log line `[PShare] elevation …` says which step stopped.
 They should not: check **Auto upload** shows the uploader as running, and
 that **Send uploads through it** is on.
 
+**What happens to HDR screenshots?**
+With HDR capture on, the PS5 saves screenshots as JPEG XR (`.jxr`), which
+browsers, Discord and Telegram can't show. PShare decodes them and tone-maps
+the HDR picture to SDR: the gallery, the browser page and chats get a normal
+picture, and the original `.jxr` goes along too (Telegram: a photo, then the
+original as a file; Discord: both in one post; file hosts: the picture; USB,
+PC, Mac and OneDrive: the original). Turning HDR capture off under
+**Settings › Captures and Broadcasts › Captures** saves JPG or PNG instead.
+
 **New screenshots are not picked up.**
 Look in `/data/pshare/pshared.log` for "capture folder(s) cannot be opened":
 it names a folder the console does not let PShare read, which hides the

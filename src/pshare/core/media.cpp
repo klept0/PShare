@@ -47,6 +47,8 @@ const char *MediaItem::content_type() const
         return "image/png";
     if (ends_with_ci(file, ".jpg") || ends_with_ci(file, ".jpeg"))
         return "image/jpeg";
+    if (ends_with_ci(file, ".jxr"))
+        return "image/vnd.ms-photo";
     if (ends_with_ci(file, ".mp4"))
         return "video/mp4";
     if (ends_with_ci(file, ".webm"))
@@ -54,10 +56,22 @@ const char *MediaItem::content_type() const
     return "application/octet-stream";
 }
 
+bool MediaItem::jxr() const
+{
+    return ends_with_ci(file, ".jxr");
+}
+
+bool MediaItem::web_image() const
+{
+    return ends_with_ci(file, ".jpg") || ends_with_ci(file, ".jpeg") || ends_with_ci(file, ".png");
+}
+
 bool capture_kind(std::string_view file, MediaKind *kind)
 {
     MediaKind found;
-    if (ends_with_ci(file, ".jpg") || ends_with_ci(file, ".jpeg") || ends_with_ci(file, ".png"))
+    // .jxr: JPEG XR, what the PS5 saves HDR screenshots as.
+    if (ends_with_ci(file, ".jpg") || ends_with_ci(file, ".jpeg") || ends_with_ci(file, ".png") ||
+        ends_with_ci(file, ".jxr"))
         found = MediaKind::screenshot;
     else if (ends_with_ci(file, ".webm") || ends_with_ci(file, ".mp4"))
         found = MediaKind::video;

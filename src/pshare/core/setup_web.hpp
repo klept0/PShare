@@ -58,6 +58,8 @@ struct GalleryItem
     std::string when; // "2026-10-09 18:35"
     std::string size; // "3.2 MB"
     bool video = false;
+    bool picture = true; // a browser can show the file itself
+    bool hdr = false;    // a JPEG XR screenshot: shown as /file?...&jpeg=<width>
 };
 // The gallery's game list and filter: title ID, name and count per game.
 struct GalleryGame

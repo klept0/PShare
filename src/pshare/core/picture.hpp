@@ -21,8 +21,8 @@ struct Picture
     std::vector<std::uint8_t> rgba;
 };
 
-// Decodes a JPEG or PNG and shrinks it to fit max_width x max_height
-// (keeping its shape). False when the file cannot be read or decoded.
+// Decodes a JPEG, PNG or JPEG XR (an HDR screenshot, tone-mapped to SDR) and shrinks it to fit
+// max_width x max_height (keeping its shape). False when the file cannot be read or decoded.
 bool decode_picture(const std::string &path, int max_width, int max_height, Picture *picture);
 // The same from bytes in memory.
 bool decode_picture_bytes(const std::string &bytes, int max_width, int max_height,

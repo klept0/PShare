@@ -69,6 +69,13 @@ struct MediaItem
         return video() ? "Clip" : "Screenshot";
     }
     const char *content_type() const;
+    // A JPEG or PNG: what browsers, chats and the app's decoder can show. The
+    // PS5 saves HDR screenshots as JPEG XR (.jxr), which none of them do;
+    // those are kept and sent as files.
+    bool web_image() const;
+    // A JPEG XR (.jxr) HDR screenshot: PShare decodes it (picture.hpp) and
+    // sends a JPEG copy where a chat or host has to show it.
+    bool jxr() const;
 };
 
 struct ScanOptions

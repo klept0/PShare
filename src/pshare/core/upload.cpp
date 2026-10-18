@@ -153,7 +153,7 @@ bool plan_request(const Destination &destination, const MediaItem &item, const C
         // Photos over 10 MB and WebM clips only go through as documents.
         const char *method = "sendDocument";
         const char *field = "document";
-        if (!item.video() && item.size <= kTelegramPhotoLimit)
+        if (item.web_image() && item.size <= kTelegramPhotoLimit)
         {
             method = "sendPhoto";
             field = "photo";
@@ -373,11 +373,11 @@ Attempt send_with_retries(const Config &config, const Destination &destination,
 
 bool needs_photo_copy(const Destination &destination, const MediaItem &item)
 {
-    return destination.type == DestinationType::telegram && !item.video() &&
-           item.size > kTelegramPhotoLimit;
+    return destination.type == DestinationType::telegram &&
+           (item.jxr() || (item.web_image() && item.size > kTelegramPhotoLimit));
 }
 
-bool make_telegram_photo(const MediaItem &item, const std::string &target, MediaItem *photo)
+bool make_photo_copy(const MediaItem &item, const std::string &target, MediaItem *photo)
 {
     Picture picture;
     if (!decode_picture(item.path, kTelegramPhotoSide, kTelegramPhotoSide, &picture))
@@ -399,7 +399,8 @@ AlbumKind album_kind(const Destination &destination, const MediaItem &item)
     const std::uint64_t limit = destination.size_limit();
     if (destination.type != DestinationType::telegram || (limit != 0 && item.size > limit))
         return AlbumKind::none;
-    return item.video() ? AlbumKind::file : AlbumKind::photo;
+    // A JPEG XR goes as a photo copy, with the original among the files.
+    return item.web_image() || item.jxr() ? AlbumKind::photo : AlbumKind::file;
 }
 
 bool plan_album(const Destination &destination, AlbumKind kind, const std::vector<MediaItem> &items,
@@ -432,7 +433,7 @@ bool plan_album(const Destination &destination, AlbumKind kind, const std::vecto
     std::string media = "[";
     for (std::size_t i = 0; i < items.size(); ++i)
     {
-        const bool photo = !items[i].video() && items[i].size <= kTelegramPhotoLimit;
+        const bool photo = items[i].web_image() && items[i].size <= kTelegramPhotoLimit;
         if (kind == AlbumKind::none || (kind == AlbumKind::photo && !photo))
             return fail("Only photos of up to 10 MB go in a photo album");
         const std::string name = "p" + std::to_string(i);
@@ -473,7 +474,7 @@ UploadOutcome upload_album_with(const Config &config, const Destination &destina
             original_captions.push_back(caption);
             const std::string copy =
                 scratch_path("telegram-" + std::to_string(getpid()) + "-" + items[i].file + ".jpg");
-            if (!make_telegram_photo(items[i], copy, &photo))
+            if (!make_photo_copy(items[i], copy, &photo))
                 continue; // a file only
             copies.push_back(copy);
         }
@@ -628,7 +629,7 @@ UploadOutcome upload_capture_with(const Config &config, const Destination &desti
         progress->stage = 1;
     }
 
-    // A screenshot too big to be a Telegram photo: a photo copy, then the original.
+    // A screenshot too big to be a Telegram photo, or HDR: a photo copy, then the original.
     if (link.empty() && needs_photo_copy(destination, item))
     {
         UploadOutcome twice = upload_album_with(config, destination, {item}, {game}, progress,
@@ -636,8 +637,41 @@ UploadOutcome upload_capture_with(const Config &config, const Destination &desti
         twice.attempts += outcome.attempts;
         return twice;
     }
-    const Attempt sent = send_with_retries(config, destination, item, caption, link, progress,
-                                           transport, user, pause_between_tries);
+    // An HDR screenshot elsewhere: what is sent is a JPEG copy anyone can see;
+    // Discord gets the original attached too, when both fit its limit.
+    MediaItem copy;
+    std::string copy_path;
+    if (link.empty() && item.jxr())
+    {
+        copy_path = scratch_path("photo-" + std::to_string(getpid()) + "-" + item.file + ".jpg");
+        if (!make_photo_copy(item, copy_path, &copy))
+            copy_path.clear(); // unreadable here: the original goes as it is
+    }
+    Attempt sent;
+    if (!copy_path.empty())
+    {
+        HttpRequest request;
+        if (!plan_request(destination, copy, caption, {}, &request, &sent.error))
+        {
+            ::unlink(copy_path.c_str());
+            outcome.error = sent.error;
+            return outcome;
+        }
+        if (destination.type == DestinationType::discord &&
+            (limit == 0 || copy.size + item.size <= limit))
+        {
+            request.parts.push_back(file_part("files[1]", item));
+            request.upload_size += item.size;
+        }
+        sent = send_planned(config, destination.type, request, {}, progress, transport, user,
+                            pause_between_tries);
+        ::unlink(copy_path.c_str());
+    }
+    else
+    {
+        sent = send_with_retries(config, destination, item, caption, link, progress, transport,
+                                 user, pause_between_tries);
+    }
     outcome.attempts += sent.attempts;
     outcome.ok = sent.ok;
     outcome.link = sent.ok ? (sent.link.empty() ? link : sent.link) : std::string();
