@@ -30,6 +30,8 @@ enum RowId
     row_path,
     row_password,
     row_also,
+    row_client,
+    row_folder,
 };
 
 constexpr int kLimits[] = {0, 10, 25, 50, 100, 200, 500};
@@ -339,6 +341,13 @@ class DestinationsPage final : public Page
                   "Your Windows, Mac or Samba account; leave empty for a guest share");
             field(row_password, "Password", masked(d->token), "That account's password");
             break;
+        case DestinationType::onedrive:
+            field(row_client, "Client ID", d->client_id.empty() ? "Not set" : d->client_id,
+                  "The Application (client) ID of your app registration at portal.azure.com");
+            field(row_token, "Refresh token", masked(d->token),
+                  "Long: paste it from your phone (Auto upload > Set up from your phone)");
+            field(row_folder, "Folder", d->path, "Captures land in <folder>/<game>/ in OneDrive");
+            break;
         case DestinationType::http:
         case DestinationType::count:
             field(row_url, "Upload URL", shortened(d->url),
@@ -419,7 +428,7 @@ class DestinationsPage final : public Page
         prompt_.style.password = password;
         prompt_.style.allow_empty = true;
         prompt_.style.auto_capital = id == row_name || id == row_message || id == row_username;
-        prompt_.style.max_length = 400;
+        prompt_.style.max_length = id == row_token ? 4000 : 400; // OneDrive tokens run long
     }
 
     void apply(Context &context, ui::Feedback &feedback, int id, ui::Event event)
@@ -508,9 +517,19 @@ class DestinationsPage final : public Page
             secret = true;
             break;
         case row_token:
-            title = d.type == DestinationType::telegram ? "Bot token" : "Token";
+            title = d.type == DestinationType::telegram   ? "Bot token"
+                    : d.type == DestinationType::onedrive ? "Refresh token"
+                                                          : "Token";
             value = d.token;
-            secret = d.type == DestinationType::telegram;
+            secret = d.type == DestinationType::telegram || d.type == DestinationType::onedrive;
+            break;
+        case row_client:
+            title = "Client ID";
+            value = d.client_id;
+            break;
+        case row_folder:
+            title = "OneDrive folder";
+            value = d.path;
             break;
         case row_chat:
             title = "Chat ID";
@@ -564,6 +583,12 @@ class DestinationsPage final : public Page
             break;
         case row_field:
             d->field = value.empty() ? "file" : value;
+            break;
+        case row_client:
+            d->client_id = value;
+            break;
+        case row_folder:
+            d->path = value.empty() ? "PShare" : value;
             break;
         default:
             return;
