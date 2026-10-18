@@ -177,6 +177,17 @@ Captures land in `<folder>/<game>/`. PShare keeps the sign-in fresh by
 itself (in `/data/pshare/onedrive-<id>.token`); if OneDrive goes unused for
 about 90 days, or you change your password, repeat steps 4–6. Treat the
 refresh token like a password.
+
+No **OneDrive** in the list? Your `config.ini` was written by an older
+version: add this to the file and reopen PShare:
+
+```ini
+[destination.onedrive]
+type = onedrive
+name = OneDrive
+path = PShare
+enabled = false
+```
 </details>
 
 <details>
