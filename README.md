@@ -409,6 +409,12 @@ restart PShare. The log line `[PShare] elevation …` says which step stopped.
 They should not: check **Auto upload** shows the uploader as running, and
 that **Send uploads through it** is on.
 
+**New screenshots are not picked up.**
+Look in `/data/pshare/pshared.log` for "capture folder(s) cannot be opened":
+it names a folder the console does not let PShare read, which hides the
+captures in it. Captures that appear after the uploader first looked are sent
+even when their file is dated hours off the console's clock.
+
 **Clips play in the app but not in the browser while PShare is closed.**
 After some console restarts the console hands jailbreak payloads, the
 background uploader included, nothing but zeros when they read a clip, while
