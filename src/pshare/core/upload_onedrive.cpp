@@ -9,7 +9,8 @@
 //      new refresh token too; it is kept in onedrive-<id>.token beside the
 //      config, so the sign-in outlives the token that was typed in;
 //   2. open an upload session for <folder>/<game>/<file>;
-//   3. send the file in slices; the last one answers with the new item.
+//   3. send the file in slices; the last one answers with the new item;
+//   4. as a fallback for a chat, make a view-only link anyone can open.
 //
 // Planned here and performed by the Transport, so the tests run it offline.
 
@@ -103,7 +104,8 @@ UploadOutcome finish(UploadOutcome outcome, UploadProgress *progress)
 UploadOutcome send_to_onedrive(const Config &config, const Destination &destination,
                                const MediaItem &item, const std::string &game,
                                UploadProgress *progress, Transport transport, void *user,
-                               bool pause_between_tries, const std::string &token_file)
+                               bool pause_between_tries, const std::string &token_file,
+                               bool share_link)
 {
     UploadOutcome outcome;
     outcome.destination = destination.id;
@@ -199,9 +201,28 @@ UploadOutcome send_to_onedrive(const Config &config, const Destination &destinat
         if (http.status == 200 || http.status == 201)
         {
             outcome.ok = true;
-            json_find_string(http.body, "webUrl", &outcome.link);
+            json_top_string(http.body, "webUrl", &outcome.link);
             if (progress != nullptr)
                 progress->sent = item.size;
+            // 4. A link for the chat. Some work accounts allow no anonymous
+            // links; the owner's link is kept then.
+            std::string id;
+            if (share_link && json_top_string(http.body, "id", &id))
+            {
+                HttpRequest link;
+                link.url = "https://graph.microsoft.com/v1.0/me/drive/items/" + url_encode(id) +
+                           "/createLink";
+                link.headers = {"Connection: close", "Authorization: Bearer " + access};
+                link.body = BodyKind::text;
+                link.raw_type = "application/json";
+                link.text = R"({"type":"view","scope":"anonymous"})";
+                const HttpResult shared = send_request(config, link, nullptr, transport, user,
+                                                       pause_between_tries, &outcome.attempts);
+                std::string url;
+                if ((shared.status == 200 || shared.status == 201) &&
+                    json_find_string(shared.body, "webUrl", &url))
+                    outcome.link = url;
+            }
             return finish(outcome, progress);
         }
         if (http.status != 202)
