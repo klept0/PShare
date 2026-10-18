@@ -359,11 +359,12 @@ Attempt send_with_retries(const Config &config, const Destination &destination,
 }
 } // namespace
 
-bool album_photo(const Destination &destination, const MediaItem &item)
+AlbumKind album_kind(const Destination &destination, const MediaItem &item)
 {
     const std::uint64_t limit = destination.size_limit();
-    return destination.type == DestinationType::telegram && !item.video() &&
-           item.size <= kTelegramPhotoLimit && (limit == 0 || item.size <= limit);
+    if (destination.type != DestinationType::telegram || (limit != 0 && item.size > limit))
+        return AlbumKind::none;
+    return !item.video() && item.size <= kTelegramPhotoLimit ? AlbumKind::photo : AlbumKind::file;
 }
 
 bool plan_album(const Destination &destination, const std::vector<MediaItem> &items,
@@ -378,22 +379,30 @@ bool plan_album(const Destination &destination, const std::vector<MediaItem> &it
     if (!destination.configured())
         return fail("Telegram bot token or chat_id is not set");
     if (items.size() < 2 || items.size() > kAlbumSize || captions.size() != items.size())
-        return fail("An album holds 2 to 10 photos");
+        return fail("An album holds 2 to 10 captures");
+    const AlbumKind kind = album_kind(destination, items.front());
+    std::uint64_t total = 0;
+    for (const MediaItem &item : items)
+        total += item.size;
+    const std::uint64_t limit = destination.size_limit();
+    if (limit != 0 && total > limit)
+        return fail("Too much for one album");
     HttpRequest out;
     out.headers.push_back("Connection: close");
     out.url = "https://api.telegram.org/bot" + destination.token + "/sendMediaGroup";
     out.parts.push_back(text_part("chat_id", destination.chat_id));
     const std::string pattern =
         destination.message.empty() ? default_caption(destination.type) : destination.message;
-    // Each photo is a part of its own, which the media list names as attach://pN.
+    // Each capture is a part of its own, which the media list names as attach://pN.
+    const char *type = kind == AlbumKind::photo ? "photo" : "document";
     std::string media = "[";
     for (std::size_t i = 0; i < items.size(); ++i)
     {
-        if (!album_photo(destination, items[i]))
-            return fail("Only screenshots go in an album");
+        if (kind == AlbumKind::none || album_kind(destination, items[i]) != kind)
+            return fail("Photos and files go in albums of their own");
         const std::string name = "p" + std::to_string(i);
-        media += std::string(i == 0 ? "" : ",") + R"({"type":"photo","media":"attach://)" + name +
-                 R"(","caption":")" +
+        media += std::string(i == 0 ? "" : ",") + R"({"type":")" + type +
+                 R"(","media":"attach://)" + name + R"(","caption":")" +
                  json_escape(clip(expand_caption(pattern, captions[i]), 1024)) + R"("})";
         out.parts.push_back(file_part(name, items[i]));
         out.upload_size += items[i].size;

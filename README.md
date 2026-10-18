@@ -122,8 +122,10 @@ uploaded there and Discord gets the link.
    `"chat":{"id":...}`. Group and channel IDs start with `-100`.
 4. Enter the token and chat ID under **Telegram** in PShare.
 
-The Bot API takes files up to 50 MB. A **Send all** posts screenshots in
-albums of up to 10, each with its own caption, instead of one message each.
+The Bot API takes files up to 50 MB. A **Send all** posts in albums of up to
+10, each capture with its own caption, instead of one message each: photos
+(screenshots up to 10 MB) in one kind, files (bigger screenshots, clips) in the
+other, up to 50 MB an album.
 </details>
 
 <details>

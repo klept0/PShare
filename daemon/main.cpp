@@ -1133,7 +1133,7 @@ UploadOutcome send_album(const Config &config, TitleNames *names, History *histo
         g_shared.status.destination = destination.id;
     }
     g_progress.cancel = false;
-    g_log.write("sending an album of %zu screenshots to %s", items.size(), destination.id.c_str());
+    g_log.write("sending an album of %zu captures to %s", items.size(), destination.id.c_str());
     const UploadOutcome outcome = upload_album(config, destination, items, games, &g_progress);
     g_progress.sent = 0;
     g_progress.total = 0;
@@ -1300,16 +1300,29 @@ int run()
                     jobs.front().batch && describe_media(jobs.front().path, &first)
                         ? job_destination(config, jobs.front(), first)
                         : nullptr;
-                if (to != nullptr && to->configured() && album_photo(*to, first))
+                // A clip this process reads as zeros goes alone, through the app (send_one).
+                const auto groupable = [&](const MediaItem &item)
+                {
+                    return to != nullptr && to->configured() &&
+                                   !(item.video() && capture_reads_blank(item.path))
+                               ? album_kind(*to, item)
+                               : AlbumKind::none;
+                };
+                const AlbumKind kind = groupable(first);
+                if (kind != AlbumKind::none)
                 {
                     items.push_back(first);
+                    std::uint64_t total = first.size;
+                    const std::uint64_t limit = to->size_limit();
                     while (jobs.size() < kAlbumSize && !g_shared.manual.empty())
                     {
                         const ManualJob &next = g_shared.manual.front();
                         MediaItem more;
                         if (!next.batch || !describe_media(next.path, &more) ||
-                            job_destination(config, next, more) != to || !album_photo(*to, more))
+                            job_destination(config, next, more) != to || groupable(more) != kind ||
+                            (limit != 0 && total + more.size > limit))
                             break;
+                        total += more.size;
                         jobs.push_back(std::move(g_shared.manual.front()));
                         g_shared.manual.pop_front();
                         items.push_back(std::move(more));
@@ -1317,6 +1330,16 @@ int run()
                     if (jobs.size() > 1)
                         album = to;
                 }
+                // Why a Send all capture for Telegram goes on its own, for the log.
+                if (album == nullptr && to != nullptr && to->type == DestinationType::telegram &&
+                    jobs.front().batch)
+                    g_log.write("%s goes alone (%s, %s): %s", first.file.c_str(),
+                                kind == AlbumKind::photo  ? "photo"
+                                : kind == AlbumKind::file ? "file"
+                                                          : "no album",
+                                human_size(first.size).c_str(),
+                                kind == AlbumKind::none ? "over the size limit or unreadable"
+                                                        : "nothing like it queued after it");
                 for (const ManualJob &each : jobs)
                     g_shared.sending.push_back(each.id);
             }
