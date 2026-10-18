@@ -140,6 +140,31 @@ UploadOutcome upload_capture_with(const Config &config, const Destination &desti
                                   UploadProgress *progress, Transport transport, void *user,
                                   bool pause_between_tries);
 
+// Telegram albums. A "Send all" sends up to kAlbumSize captures for one chat
+// as a single sendMediaGroup message, each with its own caption, instead of
+// one message each. Telegram keeps photos and files in albums of their own:
+// screenshots it shows as photos (up to 10 MB) in one kind, everything else
+// (bigger screenshots, clips) as files in the other. An album stays within
+// the destination's size limit (the Bot API's 50 MB).
+constexpr std::size_t kAlbumSize = 10;
+enum class AlbumKind : std::uint8_t
+{
+    none, // not for an album: another service, or over the size limit
+    photo,
+    file,
+};
+AlbumKind album_kind(const Destination &destination, const MediaItem &item);
+bool plan_album(const Destination &destination, const std::vector<MediaItem> &items,
+                const std::vector<CaptionInfo> &captions, HttpRequest *request, std::string *error);
+// Sends the album with the usual retries; one outcome for all of it.
+UploadOutcome upload_album_with(const Config &config, const Destination &destination,
+                                const std::vector<MediaItem> &items,
+                                const std::vector<std::string> &games, UploadProgress *progress,
+                                Transport transport, void *user, bool pause_between_tries);
+UploadOutcome upload_album(const Config &config, const Destination &destination,
+                           const std::vector<MediaItem> &items,
+                           const std::vector<std::string> &games, UploadProgress *progress);
+
 // OneDrive takes several requests (sign in, open an upload session, send the
 // slices), so it has its own sequence; implemented in upload_onedrive.cpp.
 // `token_file` keeps the refresh token Microsoft hands back (Paths::onedrive_token).
