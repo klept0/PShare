@@ -84,7 +84,11 @@ after it was sent successfully. pshared, a payload, may not be allowed to
 delete captures; then it lists them in `/data/pshare/delete-after-send.txt`
 and the app, which can, deletes them when it starts, on its regular rescan
 and when the batch ends. Rate limits (HTTP 429) are waited out for as
-long as the service asks (`retry_after` from Telegram and Discord).
+long as the service asks (`retry_after` from Telegram and Discord). Screenshots
+of a batch going to the same Telegram chat are sent as albums of up to 10
+(`sendMediaGroup`): pshared waits until the app's `QUEUE` lines stop for half
+a second, then takes up to ten that fit, and every job of the album answers
+`pending` to `RESULT` until it is sent.
 
 When pshared cannot run (no loader on 9021, the ELF missing) the app sends
 the file itself with libcurl and writes the history line.

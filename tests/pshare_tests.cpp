@@ -502,9 +502,54 @@ HttpResult fake_transport(const HttpRequest &request, UploadProgress *, void *us
     result.status = 200;
     if (request.url.find("catbox") != std::string::npos)
         result.body = "https://files.catbox.moe/big.webm";
+    else if (request.url.find("api.telegram.org") != std::string::npos)
+        result.body = R"({"ok":true,"result":[]})";
     else
         result.body = R"({"attachments":[]})";
     return result;
+}
+
+TEST(telegram_albums)
+{
+    Config config = ready_config();
+    const Destination &telegram = *config.find("telegram");
+    std::vector<MediaItem> shots;
+    for (int i = 1; i <= 3; ++i)
+        shots.push_back(sample_item("/p/PS5/PPSA01234/20261009_18350" + std::to_string(i) +
+                                        "_0000000" + std::to_string(i) + ".jpg",
+                                    1000));
+    const MediaItem clip = sample_item("/v/PS5/PPSA01234/20261009_183501_00000002.webm", 1000);
+    CHECK(album_photo(telegram, shots[0]));
+    CHECK(!album_photo(telegram, clip));
+    CHECK(!album_photo(telegram, sample_item(shots[0].path, 11ull << 20))); // a document then
+    CHECK(!album_photo(*config.find("discord"), shots[0]));
+
+    std::vector<CaptionInfo> captions;
+    for (const MediaItem &shot : shots)
+        captions.push_back(caption_info(shot, "Astro"));
+    HttpRequest request;
+    std::string error;
+    CHECK(plan_album(telegram, shots, captions, &request, &error));
+    CHECK_EQ(request.url, "https://api.telegram.org/bot123:abc/sendMediaGroup");
+    CHECK_EQ(request.upload_size, 3000u);
+    const FormPart *media = part(request, "media");
+    CHECK(media != nullptr);
+    if (media != nullptr)
+    {
+        CHECK(media->value.find(R"({"type":"photo","media":"attach://p0","caption":"Screenshot )"
+                                R"(from Astro)") != std::string::npos);
+        CHECK(media->value.find("attach://p2") != std::string::npos);
+    }
+    CHECK(part(request, "p2") != nullptr && part(request, "p2")->is_file());
+    CHECK(part(request, "chat_id")->value == "-100");
+    CHECK(!plan_album(telegram, {shots[0]}, {captions[0]}, &request, &error));
+    CHECK(!plan_album(telegram, {shots[0], clip}, {captions[0], captions[0]}, &request, &error));
+
+    FakeServer server;
+    const UploadOutcome outcome = upload_album_with(config, telegram, shots, {"Astro"}, nullptr,
+                                                    fake_transport, &server, false);
+    CHECK(outcome.ok);
+    CHECK_EQ(server.urls.size(), 1u);
 }
 
 TEST(big_files_go_through_the_fallback)
