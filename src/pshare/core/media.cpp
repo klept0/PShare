@@ -116,7 +116,14 @@ void walk(const std::string &folder, MediaKind kind, int depth, const ScanOption
         return;
     DIR *directory = opendir(folder.c_str());
     if (directory == nullptr)
+    {
+        if (depth > 0 && result->unreadable++ == 0)
+        {
+            result->unreadable_path = folder;
+            result->unreadable_errno = errno;
+        }
         return;
+    }
     ++result->folders;
     std::vector<std::string> folders;
     while (const dirent *entry = readdir(directory))

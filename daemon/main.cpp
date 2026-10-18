@@ -1244,6 +1244,7 @@ int run()
 
     std::deque<MediaItem> queue;
     std::int64_t next_poll = 0;
+    int unreadable_logged = 0;
     while (!g_quit.load())
     {
         bool reload = false;
@@ -1440,6 +1441,17 @@ int run()
             next_poll = now + std::clamp(config.poll_seconds, 1, 300);
             for (MediaItem &item : watcher.poll(now))
                 queue.push_back(std::move(item));
+            // Folders the scan cannot open hide their captures: say so once.
+            const ScanResult &problems = watcher.last_scan_problems();
+            if (problems.unreadable != unreadable_logged)
+            {
+                unreadable_logged = problems.unreadable;
+                if (problems.unreadable > 0)
+                    g_log.write("%d capture folder(s) cannot be opened, so their captures are "
+                                "missed; the first: %s (errno %d)",
+                                problems.unreadable, problems.unreadable_path.c_str(),
+                                problems.unreadable_errno);
+            }
             const std::string ip = local_ip_address();
             {
                 std::lock_guard<std::mutex> lock(g_shared.mutex);
