@@ -334,9 +334,9 @@ class DestinationsPage final : public Page
         }
         case DestinationType::smb:
             field(row_url, "Share", shortened(d->url),
-                  "smb://<PC address>/<shared folder>/<optional subfolder>");
+                  "smb://<PC or Mac address>/<shared folder>/<optional subfolder>");
             field(row_username, "User name", d->username.empty() ? "Guest" : d->username,
-                  "Your Windows (or Samba) account; leave empty for a guest share");
+                  "Your Windows, Mac or Samba account; leave empty for a guest share");
             field(row_password, "Password", masked(d->token), "That account's password");
             break;
         case DestinationType::http:
@@ -496,7 +496,7 @@ class DestinationsPage final : public Page
             break;
         case row_url:
             title = d.type == DestinationType::discord ? "Webhook URL"
-                    : d.type == DestinationType::smb   ? "Share (smb://PC/folder)"
+                    : d.type == DestinationType::smb   ? "Share (smb://PC or Mac/folder)"
                                                        : "URL";
             value = d.url;
             if (value.empty() && d.type == DestinationType::smb)
