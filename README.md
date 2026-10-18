@@ -123,10 +123,12 @@ Discord gets a note saying where the clip was saved.
    `"chat":{"id":...}`. Group and channel IDs start with `-100`.
 4. Enter the token and chat ID under **Telegram** in PShare.
 
-The Bot API takes files up to 50 MB. A **Send all** posts in albums of up to
-10, each capture with its own caption, instead of one message each: photos
-(screenshots up to 10 MB) in one kind, files (bigger screenshots, clips) in the
-other, up to 50 MB an album.
+The Bot API takes files up to 50 MB, and photos up to 10 MB. A screenshot
+bigger than that (a 4K PNG, say) goes twice: a 2560 px copy as a photo, so it
+shows in the chat's photos, then the original as a file captioned
+"Full size". A **Send all** posts in albums of up to 10, each capture with its
+own caption: screenshots as photo albums (their full-size originals follow as
+albums of files), clips as albums of files, up to 50 MB an album.
 </details>
 
 <details>

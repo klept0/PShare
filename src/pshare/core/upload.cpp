@@ -5,10 +5,12 @@
 #include "pshare/core/upload.hpp"
 
 #include "pshare/core/local_copy.hpp"
+#include "pshare/core/picture.hpp"
 
 #include "pshare/core/text.hpp"
 
 #include <algorithm>
+#include <sys/stat.h>
 #include <unistd.h>
 
 namespace pshare
@@ -19,6 +21,16 @@ constexpr const char *kCatboxApi = "https://catbox.moe/user/api.php";
 constexpr const char *kLitterboxApi = "https://litterbox.catbox.moe/resources/internals/api.php";
 constexpr std::uint64_t kTelegramPhotoLimit = 10ull * 1024 * 1024;
 constexpr std::size_t kDiscordContentLimit = 2000;
+
+// Where a passing copy is written: the data folder on the console, /tmp on a PC.
+std::string scratch_path(const std::string &name)
+{
+    const std::string data = Paths{}.data_root;
+    struct stat info
+    {
+    };
+    return (::stat(data.c_str(), &info) == 0 ? data : std::string("/tmp")) + "/" + name;
+}
 
 FormPart text_part(std::string name, std::string value)
 {
@@ -359,15 +371,38 @@ Attempt send_with_retries(const Config &config, const Destination &destination,
 }
 } // namespace
 
+bool needs_photo_copy(const Destination &destination, const MediaItem &item)
+{
+    return destination.type == DestinationType::telegram && !item.video() &&
+           item.size > kTelegramPhotoLimit;
+}
+
+bool make_telegram_photo(const MediaItem &item, const std::string &target, MediaItem *photo)
+{
+    Picture picture;
+    if (!decode_picture(item.path, kTelegramPhotoSide, kTelegramPhotoSide, &picture))
+        return false;
+    std::string jpeg = encode_jpeg(picture, 88);
+    if (jpeg.size() > kTelegramPhotoLimit)
+        jpeg = encode_jpeg(picture, 70);
+    if (jpeg.empty() || jpeg.size() > kTelegramPhotoLimit || !write_text_file_atomic(target, jpeg))
+        return false;
+    *photo = item;
+    photo->path = target;
+    photo->size = jpeg.size();
+    photo->file = item.file.substr(0, item.file.rfind('.')) + ".jpg";
+    return true;
+}
+
 AlbumKind album_kind(const Destination &destination, const MediaItem &item)
 {
     const std::uint64_t limit = destination.size_limit();
     if (destination.type != DestinationType::telegram || (limit != 0 && item.size > limit))
         return AlbumKind::none;
-    return !item.video() && item.size <= kTelegramPhotoLimit ? AlbumKind::photo : AlbumKind::file;
+    return item.video() ? AlbumKind::file : AlbumKind::photo;
 }
 
-bool plan_album(const Destination &destination, const std::vector<MediaItem> &items,
+bool plan_album(const Destination &destination, AlbumKind kind, const std::vector<MediaItem> &items,
                 const std::vector<CaptionInfo> &captions, HttpRequest *request, std::string *error)
 {
     const auto fail = [&](const char *why)
@@ -380,7 +415,6 @@ bool plan_album(const Destination &destination, const std::vector<MediaItem> &it
         return fail("Telegram bot token or chat_id is not set");
     if (items.size() < 2 || items.size() > kAlbumSize || captions.size() != items.size())
         return fail("An album holds 2 to 10 captures");
-    const AlbumKind kind = album_kind(destination, items.front());
     std::uint64_t total = 0;
     for (const MediaItem &item : items)
         total += item.size;
@@ -398,8 +432,9 @@ bool plan_album(const Destination &destination, const std::vector<MediaItem> &it
     std::string media = "[";
     for (std::size_t i = 0; i < items.size(); ++i)
     {
-        if (kind == AlbumKind::none || album_kind(destination, items[i]) != kind)
-            return fail("Photos and files go in albums of their own");
+        const bool photo = !items[i].video() && items[i].size <= kTelegramPhotoLimit;
+        if (kind == AlbumKind::none || (kind == AlbumKind::photo && !photo))
+            return fail("Only photos of up to 10 MB go in a photo album");
         const std::string name = "p" + std::to_string(i);
         media += std::string(i == 0 ? "" : ",") + R"({"type":")" + type +
                  R"(","media":"attach://)" + name + R"(","caption":")" +
@@ -419,16 +454,75 @@ UploadOutcome upload_album_with(const Config &config, const Destination &destina
 {
     UploadOutcome outcome;
     outcome.destination = destination.id;
+    const AlbumKind kind = items.empty() ? AlbumKind::none : album_kind(destination, items[0]);
+    // What goes in the album, and (screenshots too big to be photos) the
+    // originals that follow as files.
+    std::vector<MediaItem> album;
     std::vector<CaptionInfo> captions;
+    std::vector<MediaItem> originals;
+    std::vector<CaptionInfo> original_captions;
+    std::vector<std::string> copies;
     for (std::size_t i = 0; i < items.size(); ++i)
-        captions.push_back(caption_info(items[i], i < games.size() ? games[i] : std::string()));
-    HttpRequest request;
-    if (!plan_album(destination, items, captions, &request, &outcome.error))
-        return outcome;
+    {
+        const CaptionInfo caption =
+            caption_info(items[i], i < games.size() ? games[i] : std::string());
+        MediaItem photo = items[i];
+        if (kind == AlbumKind::photo && needs_photo_copy(destination, items[i]))
+        {
+            originals.push_back(items[i]);
+            original_captions.push_back(caption);
+            const std::string copy =
+                scratch_path("telegram-" + std::to_string(getpid()) + "-" + items[i].file + ".jpg");
+            if (!make_telegram_photo(items[i], copy, &photo))
+                continue; // a file only
+            copies.push_back(copy);
+        }
+        album.push_back(photo);
+        captions.push_back(caption);
+    }
     if (progress != nullptr)
         progress->stage = 1;
-    const Attempt sent = send_planned(config, destination.type, request, {}, progress, transport,
-                                      user, pause_between_tries);
+    // One capture is a message of its own; two or more an album.
+    const auto send_group = [&](const Destination &to, AlbumKind as,
+                                const std::vector<MediaItem> &group,
+                                const std::vector<CaptionInfo> &group_captions)
+    {
+        if (group.size() == 1)
+            return send_with_retries(config, to, group[0], group_captions[0], {}, progress,
+                                     transport, user, pause_between_tries);
+        Attempt failed;
+        HttpRequest request;
+        if (!plan_album(to, as, group, group_captions, &request, &failed.error))
+            return failed;
+        return send_planned(config, to.type, request, {}, progress, transport, user,
+                            pause_between_tries);
+    };
+    Attempt sent;
+    sent.ok = true;
+    if (!album.empty())
+        sent = send_group(destination, kind, album, captions);
+    // The originals, in as many file albums as the size limit needs.
+    Destination full = destination;
+    full.message = "Full size \xC2\xB7 {file}";
+    const std::uint64_t limit = destination.size_limit();
+    for (std::size_t first = 0; sent.ok && first < originals.size();)
+    {
+        std::size_t end = first + 1;
+        std::uint64_t total = originals[first].size;
+        while (end < originals.size() && end - first < kAlbumSize &&
+               (limit == 0 || total + originals[end].size <= limit))
+            total += originals[end++].size;
+        const std::vector<MediaItem> group(originals.begin() + first, originals.begin() + end);
+        const std::vector<CaptionInfo> group_captions(original_captions.begin() + first,
+                                                      original_captions.begin() + end);
+        const Attempt files = send_group(full, AlbumKind::file, group, group_captions);
+        sent.attempts += files.attempts;
+        sent.ok = files.ok;
+        sent.error = files.error;
+        first = end;
+    }
+    for (const std::string &copy : copies)
+        ::unlink(copy.c_str());
     outcome.ok = sent.ok;
     outcome.attempts = sent.attempts;
     outcome.error = sent.error;
@@ -534,6 +628,14 @@ UploadOutcome upload_capture_with(const Config &config, const Destination &desti
         progress->stage = 1;
     }
 
+    // A screenshot too big to be a Telegram photo: a photo copy, then the original.
+    if (link.empty() && needs_photo_copy(destination, item))
+    {
+        UploadOutcome twice = upload_album_with(config, destination, {item}, {game}, progress,
+                                                transport, user, pause_between_tries);
+        twice.attempts += outcome.attempts;
+        return twice;
+    }
     const Attempt sent = send_with_retries(config, destination, item, caption, link, progress,
                                            transport, user, pause_between_tries);
     outcome.attempts += sent.attempts;
