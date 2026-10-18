@@ -999,6 +999,32 @@ TEST(setup_form_changes_the_config)
     CHECK_EQ(config.find("custom")->headers.size(), 2u);
 }
 
+TEST(gallery_selects_sends_and_deletes)
+{
+    GalleryItem shot;
+    shot.path = "/user/av_contents/photo/PS5/PPSA01234/20261009_183501_00000001.jpg";
+    shot.game = "Astro";
+    GalleryItem clip = shot;
+    clip.path = "/user/av_contents/video/PS5/PPSA01234/20261009_183600_00000002.webm";
+    clip.video = true;
+    GalleryFilter filter;
+    filter.game = "PPSA01234";
+    filter.total = 120;
+    filter.destinations = {{"telegram", "Telegram"}};
+    const std::string page = gallery_page({shot, clip}, 1, 3, "Sending 2 captures", filter);
+    CHECK(page.find("<form method=\"post\" action=\"/act\"") != std::string::npos);
+    CHECK(page.find("name=\"s.0\" value=\"" + shot.path + "\"") != std::string::npos);
+    CHECK(page.find("name=\"s.1\" value=\"" + clip.path + "\"") != std::string::npos);
+    CHECK(page.find("value=\"send-all\">Send all 120</button>") != std::string::npos);
+    CHECK(page.find("<option value=\"telegram\">Telegram</option>") != std::string::npos);
+    CHECK(page.find("name=\"page\" value=\"1\"") != std::string::npos);
+    CHECK(page.find("name=\"game\" value=\"PPSA01234\"") != std::string::npos);
+    CHECK(page.find("value=\"delete\"") != std::string::npos);
+    CHECK(page.find("Sending 2 captures") != std::string::npos);
+    // Nothing to tick, nothing to send.
+    CHECK(gallery_page({}, 0, 1, {}, {}).find("send-all") == std::string::npos);
+}
+
 TEST(daemon_status_round_trip)
 {
     DaemonStatus status;
@@ -1025,6 +1051,8 @@ TEST(daemon_status_round_trip)
     CHECK_EQ(again.ip, "192.168.1.5");
     CHECK_EQ(again.sent, 10u);
     CHECK_EQ(again.total, 20u);
+    status.delete_ask = 4;
+    CHECK_EQ(DaemonStatus::parse(status.serialize()).delete_ask, 4);
 }
 
 // ---- sending without the internet ---------------------------------------------

@@ -208,6 +208,7 @@ class App
     std::array<std::unique_ptr<Page>, kPages> pages_;
     ui::SideNav nav_;
     ui::Menu menu_;
+    ui::Dialog delete_ask_; // a browser asks to delete captures (Model::delete_request)
     ui::ProgressBar upload_progress_;
     int current_ = 0;
     bool content_focus_ = false;

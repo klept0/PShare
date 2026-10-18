@@ -52,6 +52,7 @@ namespace
 {
 constexpr std::size_t kLogLimit = 512 * 1024;
 constexpr int kSetupMinutes = 30;
+constexpr int kDeleteAskSeconds = 300;
 
 std::int64_t now_seconds()
 {
@@ -139,6 +140,10 @@ struct Shared
     std::deque<ManualJob> manual;
     std::chrono::steady_clock::time_point last_queued; // the newest QUEUE
     BatchTally batch;
+    // A browser asks to delete captures: the app asks on the console, and
+    // only the app deletes (DELETEASK). Forgotten after kDeleteAskSeconds.
+    std::vector<std::string> delete_ask;
+    std::int64_t delete_ask_at = 0;
     int next_job = 1;
     int current_job = 0;
     std::vector<int> sending; // every job going now: one, or the jobs of an album
@@ -299,6 +304,9 @@ std::string handle_command(std::string_view line)
         if (!web_open_locked())
             status.setup_port = 0;
         status.job = g_shared.current_job;
+        if (g_shared.delete_ask_at < now_seconds() - kDeleteAskSeconds)
+            g_shared.delete_ask.clear();
+        status.delete_ask = static_cast<int>(g_shared.delete_ask.size());
         std::string reply = status.serialize();
         reply += "sent=" + std::to_string(g_progress.sent.load()) + "\n";
         reply += "total=" + std::to_string(g_progress.total.load()) + "\n";
@@ -372,6 +380,20 @@ std::string handle_command(std::string_view line)
         g_shared.setup_until = now_seconds() + kSetupMinutes * 60;
         g_log.write("phone setup page open for %d minutes", kSetupMinutes);
         return "ok\n";
+    }
+    if (verb == "DELETEASK")
+    {
+        // "DELETEASK": the paths a browser asked to delete, one per line after
+        // "ok"; "DELETEASK clear": the app has asked and answered.
+        if (iequals(argument, "clear"))
+        {
+            g_shared.delete_ask.clear();
+            return "ok\n";
+        }
+        std::string reply = "ok\n";
+        for (const std::string &path : g_shared.delete_ask)
+            reply += path + "\n";
+        return reply;
     }
     if (verb == "QUIT")
     {
@@ -584,8 +606,10 @@ void stream_file(int client, std::string path, std::string range, bool download)
     close(client);
 }
 
-std::vector<GalleryItem> gallery_items(const Paths &paths, TitleNames *names, int page, int *pages,
-                                       GalleryFilter *filter)
+// Every capture the gallery's filter shows, in its order, every page; fills
+// in the filter's game list too.
+std::vector<MediaItem> filtered_captures(const Paths &paths, TitleNames *names,
+                                         GalleryFilter *filter)
 {
     ScanResult scan = scan_media(paths, ScanOptions{});
     // Every game for the choice list, then only the chosen one, in the chosen order.
@@ -613,13 +637,22 @@ std::vector<GalleryItem> gallery_items(const Paths &paths, TitleNames *names, in
                          scan.items.end());
     if (filter->oldest_first)
         std::reverse(scan.items.begin(), scan.items.end());
-    const int count = static_cast<int>(scan.items.size());
+    filter->total = static_cast<int>(scan.items.size());
+    return std::move(scan.items);
+}
+
+std::vector<GalleryItem> gallery_items(const Paths &paths, TitleNames *names, int page, int *pages,
+                                       GalleryFilter *filter)
+{
+    const std::vector<MediaItem> captures = filtered_captures(paths, names, filter);
+    const int count = static_cast<int>(captures.size());
     *pages = std::max(1, (count + kGalleryPage - 1) / kGalleryPage);
     page = std::clamp(page, 0, *pages - 1);
+    filter->page = page;
     std::vector<GalleryItem> out;
     for (int i = page * kGalleryPage; i < std::min(count, (page + 1) * kGalleryPage); ++i)
     {
-        const MediaItem &capture = scan.items[static_cast<std::size_t>(i)];
+        const MediaItem &capture = captures[static_cast<std::size_t>(i)];
         GalleryItem item;
         item.path = capture.path;
         item.game = names->display(capture.title_id);
@@ -788,6 +821,91 @@ WebReply serve(const Paths &paths, const WebRequest &request, TitleNames *names)
         reply.text = web_response(200, "application/json", body);
         return reply;
     }
+    // The gallery's selection bar: send or delete the ticked captures, or send
+    // everything the filter shows. Answered with a redirect back to the same
+    // gallery page and a notice, so a reload does not post it again.
+    if (request.method == "POST" && request.path == "/act")
+    {
+        const auto field = [&](const char *key)
+        { return form.count(key) ? form.at(key) : std::string(); };
+        const std::string act = field("act");
+        GalleryFilter filter;
+        filter.game = field("game");
+        filter.oldest_first = field("order") == "old";
+        std::vector<std::string> chosen;
+        if (act == "send-all")
+        {
+            for (const MediaItem &capture : filtered_captures(paths, names, &filter))
+                chosen.push_back(capture.path);
+        }
+        else
+        {
+            for (const auto &[key, value] : form)
+            {
+                MediaItem capture;
+                if (starts_with(key, "s.") && servable(paths, value, &capture))
+                    chosen.push_back(value);
+            }
+        }
+        std::string notice;
+        if (chosen.empty())
+        {
+            notice = "Tick some captures first";
+        }
+        else if (act == "delete")
+        {
+            std::lock_guard<std::mutex> lock(g_shared.mutex);
+            if (!app_present_locked())
+            {
+                notice = "Open PShare on the PS5 to delete from here: it asks you there first";
+            }
+            else
+            {
+                g_shared.delete_ask = chosen;
+                g_shared.delete_ask_at = now_seconds();
+                notice = "Confirm on your PS5 to delete " + std::to_string(chosen.size()) +
+                         (chosen.size() == 1 ? " capture" : " captures");
+                g_log.write("browser asks to delete %zu captures", chosen.size());
+            }
+        }
+        else if (act == "send" || act == "send-all")
+        {
+            History history(paths.history());
+            history.refresh();
+            const bool skip = form.count("skip") != 0;
+            const std::string destination = field("d");
+            int queued = 0;
+            int skipped = 0;
+            std::string error;
+            {
+                std::lock_guard<std::mutex> lock(g_shared.mutex);
+                for (const std::string &path : chosen)
+                {
+                    if (skip && history.uploaded(path))
+                        ++skipped;
+                    else if (queue_manual(destination, path, &error, "batch") > 0)
+                        ++queued;
+                }
+            }
+            notice = queued == 0
+                         ? (skipped > 0 ? "Every one of them was sent before"
+                                        : "Nothing could be sent: " + error)
+                         : "Sending " + std::to_string(queued) +
+                               (queued == 1 ? " capture" : " captures") +
+                               (skipped > 0
+                                    ? " (" + std::to_string(skipped) + " sent before were skipped)"
+                                    : std::string());
+            g_log.write("browser sent %d captures (%d skipped)", queued, skipped);
+        }
+        std::string back =
+            "/gallery?page=" + url_encode(field("page")) + "&notice=" + url_encode(notice);
+        if (!filter.game.empty())
+            back += "&game=" + url_encode(filter.game);
+        if (filter.oldest_first)
+            back += "&order=old";
+        reply.text = web_response(303, kHtml, {}, "Location: " + back + "\r\n");
+        return reply;
+    }
     if (request.path == "/gallery")
     {
         int pages = 1;
@@ -798,9 +916,21 @@ WebReply serve(const Paths &paths, const WebRequest &request, TitleNames *names)
             filter.game = game->second;
         filter.oldest_first =
             request.query.count("order") != 0 && request.query.at("order") == "old";
+        {
+            IniDocument document;
+            Config config;
+            std::vector<std::string> warnings;
+            load_config_file(paths.config(), &document, &config, &warnings);
+            for (const Destination &d : config.destinations)
+                if (d.enabled && d.configured())
+                    filter.destinations.emplace_back(d.id, d.display_name());
+        }
         const std::vector<GalleryItem> items = gallery_items(paths, names, page, &pages, &filter);
+        const auto notice = request.query.find("notice");
         reply.text = web_response(
-            200, kHtml, gallery_page(items, std::clamp(page, 0, pages - 1), pages, {}, filter));
+            200, kHtml,
+            gallery_page(items, std::clamp(page, 0, pages - 1), pages,
+                         notice != request.query.end() ? notice->second : std::string(), filter));
         return reply;
     }
 
