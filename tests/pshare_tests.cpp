@@ -13,6 +13,7 @@
 #include "pshare/core/local_copy.hpp"
 #include "pshare/core/media.hpp"
 #include "pshare/core/net.hpp"
+#include "pshare/core/picture.hpp"
 #include "pshare/core/setup_web.hpp"
 #include "pshare/core/text.hpp"
 #include "pshare/core/upload.hpp"
@@ -92,6 +93,14 @@ void write_file(const std::string &path, const std::string &text)
         return;
     std::fwrite(text.data(), 1, text.size(), file);
     std::fclose(file);
+}
+
+std::uint64_t file_size_of(const std::string &path)
+{
+    struct stat info
+    {
+    };
+    return stat(path.c_str(), &info) == 0 ? static_cast<std::uint64_t>(info.st_size) : 0;
 }
 
 MediaItem sample_item(const std::string &path, std::uint64_t size)
@@ -484,6 +493,8 @@ TEST(reads_answers)
 struct FakeServer
 {
     std::vector<std::string> urls;
+    std::vector<std::string> captions; // Telegram's
+
     int failures_left = 0;
 };
 
@@ -491,6 +502,9 @@ HttpResult fake_transport(const HttpRequest &request, UploadProgress *, void *us
 {
     FakeServer *server = static_cast<FakeServer *>(user);
     server->urls.push_back(request.url);
+    for (const FormPart &each : request.parts)
+        if (each.name == "caption")
+            server->captions.push_back(each.value);
     HttpResult result;
     result.transport_ok = true;
     if (server->failures_left > 0)
@@ -522,7 +536,8 @@ TEST(telegram_albums)
     CHECK(album_kind(telegram, shots[0]) == AlbumKind::photo);
     CHECK(album_kind(telegram, clip) == AlbumKind::file);
     const MediaItem big_shot = sample_item(shots[0].path, 11ull << 20); // a 4K PNG, say
-    CHECK(album_kind(telegram, big_shot) == AlbumKind::file);
+    CHECK(album_kind(telegram, big_shot) == AlbumKind::photo); // as a photo copy + the file
+    CHECK(needs_photo_copy(telegram, big_shot) && !needs_photo_copy(telegram, shots[0]));
     CHECK(album_kind(telegram, sample_item(clip.path, 60ull << 20)) == AlbumKind::none);
     CHECK(album_kind(*config.find("discord"), shots[0]) == AlbumKind::none);
 
@@ -531,7 +546,7 @@ TEST(telegram_albums)
         captions.push_back(caption_info(shot, "Astro"));
     HttpRequest request;
     std::string error;
-    CHECK(plan_album(telegram, shots, captions, &request, &error));
+    CHECK(plan_album(telegram, AlbumKind::photo, shots, captions, &request, &error));
     CHECK_EQ(request.url, "https://api.telegram.org/bot123:abc/sendMediaGroup");
     CHECK_EQ(request.upload_size, 3000u);
     const FormPart *media = part(request, "media");
@@ -544,21 +559,92 @@ TEST(telegram_albums)
     }
     CHECK(part(request, "p2") != nullptr && part(request, "p2")->is_file());
     CHECK(part(request, "chat_id")->value == "-100");
-    CHECK(!plan_album(telegram, {shots[0]}, {captions[0]}, &request, &error));
-    CHECK(!plan_album(telegram, {shots[0], clip}, {captions[0], captions[0]}, &request, &error));
-    // Files go in albums of their own: big screenshots and clips together.
-    CHECK(plan_album(telegram, {big_shot, clip}, {captions[0], captions[0]}, &request, &error));
+    CHECK(!plan_album(telegram, AlbumKind::photo, {shots[0]}, {captions[0]}, &request, &error));
+    CHECK(!plan_album(telegram, AlbumKind::photo, {shots[0], clip}, {captions[0], captions[0]},
+                      &request, &error));
+    CHECK(!plan_album(telegram, AlbumKind::photo, {big_shot, shots[0]}, {captions[0], captions[0]},
+                      &request, &error)); // too big to be a photo
+    // Files go in albums of their own: full-size screenshots and clips.
+    CHECK(plan_album(telegram, AlbumKind::file, {big_shot, clip}, {captions[0], captions[0]},
+                     &request, &error));
     CHECK(part(request, "media") != nullptr &&
           part(request, "media")->value.find(R"("type":"document")") != std::string::npos);
     const MediaItem huge = sample_item(clip.path, 45ull << 20);
-    CHECK(!plan_album(telegram, {huge, big_shot}, {captions[0], captions[0]}, &request,
-                      &error)); // over 50 MB together
+    CHECK(!plan_album(telegram, AlbumKind::file, {huge, big_shot}, {captions[0], captions[0]},
+                      &request, &error)); // over 50 MB together
 
     FakeServer server;
     const UploadOutcome outcome = upload_album_with(config, telegram, shots, {"Astro"}, nullptr,
                                                     fake_transport, &server, false);
     CHECK(outcome.ok);
     CHECK_EQ(server.urls.size(), 1u);
+}
+
+TEST(big_screenshots_go_to_telegram_as_a_photo_and_a_file)
+{
+    // A 4000 x 2500 screenshot of noise: well over Telegram's 10 MB for a photo.
+    Picture noise;
+    noise.width = 4000;
+    noise.height = 2500;
+    noise.rgba.resize(static_cast<std::size_t>(noise.width) * noise.height * 4);
+    std::uint32_t seed = 7;
+    for (std::uint8_t &byte : noise.rgba)
+        byte = static_cast<std::uint8_t>((seed = seed * 1664525u + 1013904223u) >> 24);
+    const std::string root = scratch() + "/telegram/PS5/PPSA01234";
+    std::system(("mkdir -p '" + root + "'").c_str());
+    const std::string path = root + "/20261009_183501_00000001.jpg";
+    const std::string jpeg = encode_jpeg(noise, 100);
+    CHECK(jpeg.size() > (10u << 20));
+    CHECK(write_text_file_atomic(path, jpeg));
+    const MediaItem shot = sample_item(path, jpeg.size());
+
+    MediaItem photo;
+    CHECK(make_telegram_photo(shot, scratch() + "/telegram/copy.jpg", &photo));
+    CHECK(photo.size <= (10u << 20));
+    CHECK_EQ(photo.file, "20261009_183501_00000001.jpg");
+    Picture back;
+    std::string bytes;
+    CHECK(read_text_file(photo.path, &bytes, 64u << 20));
+    CHECK(decode_picture_bytes(bytes, 9999, 9999, &back));
+    CHECK_EQ(back.width, 2560);
+    CHECK_EQ(back.height, 1600);
+
+    // Sent: the photo copy, then the original as a file, captioned "Full size".
+    const Config config = ready_config();
+    FakeServer server;
+    const UploadOutcome outcome = upload_capture_with(
+        config, *config.find("telegram"), shot, "Astro", nullptr, fake_transport, &server, false);
+    CHECK(outcome.ok);
+    CHECK_EQ(server.urls.size(), 2u);
+    CHECK_EQ(server.captions.size(), 2u);
+    if (server.urls.size() == 2 && server.captions.size() == 2)
+    {
+        CHECK(server.urls[0].find("/sendPhoto") != std::string::npos);
+        CHECK(server.captions[0].find("Screenshot from Astro") != std::string::npos);
+        CHECK(server.urls[1].find("/sendDocument") != std::string::npos);
+        CHECK(server.captions[1] == "Full size \xC2\xB7 20261009_183501_00000001.jpg");
+    }
+
+    // In a Send all: one photo album of three (two of them copies), then the
+    // two originals as files: one message each here, as together they pass 50 MB.
+    const std::string second = root + "/20261009_183502_00000002.jpg";
+    const std::string small = root + "/20261009_183503_00000003.jpg";
+    CHECK(write_text_file_atomic(second, jpeg));
+    CHECK(write_text_file_atomic(small, encode_jpeg(back, 80)));
+    server = FakeServer{};
+    std::vector<MediaItem> batch = {shot, sample_item(second, jpeg.size()), sample_item(small, 0)};
+    batch[2].size = file_size_of(small);
+    const UploadOutcome album =
+        upload_album_with(config, *config.find("telegram"), batch, {"Astro"}, nullptr,
+                          fake_transport, &server, false);
+    CHECK(album.ok);
+    CHECK_EQ(server.urls.size(), 3u);
+    if (server.urls.size() == 3)
+    {
+        CHECK(server.urls[0].find("/sendMediaGroup") != std::string::npos);
+        CHECK(server.urls[1].find("/sendDocument") != std::string::npos);
+        CHECK(server.urls[2].find("/sendDocument") != std::string::npos);
+    }
 }
 
 TEST(big_files_go_through_the_fallback)
@@ -1066,21 +1152,21 @@ TEST(ranges)
 
 TEST(thumbnails_shrink_and_encode)
 {
-    app::Picture big;
+    Picture big;
     big.width = 400;
     big.height = 200;
     big.rgba.assign(static_cast<std::size_t>(400 * 200 * 4), 200);
-    const app::Picture small = app::shrink(big, 100, 100);
+    const Picture small = shrink(big, 100, 100);
     CHECK_EQ(small.width, 100);
     CHECK_EQ(small.height, 50);
     CHECK_EQ(small.rgba[0], 200);
-    const std::string jpeg = app::encode_jpeg(small, 80);
+    const std::string jpeg = encode_jpeg(small, 80);
     CHECK(jpeg.size() > 100 && static_cast<unsigned char>(jpeg[0]) == 0xff);
-    app::Picture decoded;
-    CHECK(app::decode_picture_bytes(jpeg, 50, 50, &decoded));
+    Picture decoded;
+    CHECK(decode_picture_bytes(jpeg, 50, 50, &decoded));
     CHECK_EQ(decoded.width, 50);
     CHECK_EQ(decoded.height, 25);
-    CHECK(!app::decode_picture_bytes("not a picture", 50, 50, &decoded));
+    CHECK(!decode_picture_bytes("not a picture", 50, 50, &decoded));
 }
 
 } // namespace

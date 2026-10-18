@@ -140,12 +140,21 @@ UploadOutcome upload_capture_with(const Config &config, const Destination &desti
                                   UploadProgress *progress, Transport transport, void *user,
                                   bool pause_between_tries);
 
+// Telegram photos. Telegram takes a photo of at most 10 MB and shows it at
+// most 2560 px on its long side. A bigger screenshot goes twice: a JPEG copy
+// at that size as a photo, so it is in the chat's photos, and the original as
+// a file, captioned "Full size". make_telegram_photo() writes the copy (false
+// when the screenshot cannot be read; it then goes as a file only).
+constexpr int kTelegramPhotoSide = 2560;
+bool needs_photo_copy(const Destination &destination, const MediaItem &item);
+bool make_telegram_photo(const MediaItem &item, const std::string &target, MediaItem *photo);
+
 // Telegram albums. A "Send all" sends up to kAlbumSize captures for one chat
 // as a single sendMediaGroup message, each with its own caption, instead of
 // one message each. Telegram keeps photos and files in albums of their own:
-// screenshots it shows as photos (up to 10 MB) in one kind, everything else
-// (bigger screenshots, clips) as files in the other. An album stays within
-// the destination's size limit (the Bot API's 50 MB).
+// screenshots go in photo albums (with their full-size originals following
+// in a file album when they are too big to be photos), clips in file albums.
+// An album stays within the destination's size limit (the Bot API's 50 MB).
 constexpr std::size_t kAlbumSize = 10;
 enum class AlbumKind : std::uint8_t
 {
@@ -154,7 +163,9 @@ enum class AlbumKind : std::uint8_t
     file,
 };
 AlbumKind album_kind(const Destination &destination, const MediaItem &item);
-bool plan_album(const Destination &destination, const std::vector<MediaItem> &items,
+// One sendMediaGroup request: `kind` photo takes only photos Telegram accepts
+// as such (up to 10 MB), file takes anything.
+bool plan_album(const Destination &destination, AlbumKind kind, const std::vector<MediaItem> &items,
                 const std::vector<CaptionInfo> &captions, HttpRequest *request, std::string *error);
 // Sends the album with the usual retries; one outcome for all of it.
 UploadOutcome upload_album_with(const Config &config, const Destination &destination,
