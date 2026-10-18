@@ -86,6 +86,11 @@ struct ScanResult
     bool video_root = false;
     int folders = 0;
     int open_errno = 0; // the first error opening a root (EPERM: not elevated)
+    // Folders below the roots that could not be opened: their captures are
+    // missing from the scan. The first one and why, for the log.
+    int unreadable = 0;
+    std::string unreadable_path;
+    int unreadable_errno = 0;
 };
 
 ScanResult scan_media(const Paths &paths, const ScanOptions &options);

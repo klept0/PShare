@@ -373,6 +373,58 @@ TEST(watcher_waits_for_files_to_settle)
     CHECK_EQ(again.since(), start);
 }
 
+TEST(watcher_takes_new_captures_whatever_their_date)
+{
+    // Issue #2: a new screenshot whose file is dated hours before the console's
+    // clock (local time written as UTC) was taken for the back catalogue.
+    Paths paths;
+    paths.data_root = scratch() + "/watch2/data";
+    paths.photo_root = scratch() + "/watch2/photo";
+    paths.video_root = scratch() + "/watch2/video";
+    ensure_directory(paths.photo_root + "/PPSA01234/a");
+    const std::int64_t start = static_cast<std::int64_t>(std::time(nullptr));
+    const auto dated = [](const std::string &path, std::int64_t when)
+    {
+        struct timespec times[2];
+        times[0].tv_sec = times[1].tv_sec = static_cast<time_t>(when);
+        times[0].tv_nsec = times[1].tv_nsec = 0;
+        utimensat(0, path.c_str(), times, 0);
+    };
+    const std::string old = paths.photo_root + "/PPSA01234/a/20250101_000000_00000001.jpg";
+    write_file(old, "old");
+    dated(old, start - 3600); // an hour ago, but there before watching began
+    Config config;
+    config.settle_seconds = 1;
+    Watcher watcher(paths);
+    watcher.configure(config);
+    watcher.load(start);
+    CHECK(watcher.poll(start).empty());
+    CHECK(watcher.seen(old));
+    // New, but dated 5 hours back.
+    const std::string shot = paths.photo_root + "/PPSA01234/a/20261013_151530_00000002.jpg";
+    write_file(shot, "new");
+    dated(shot, start - 5 * 3600);
+    CHECK(watcher.poll(start + 10).empty()); // noticed
+    CHECK(!watcher.seen(shot));
+    CHECK_EQ(watcher.poll(start + 12).size(), 1u);
+    // One turning up dated weeks before watching began is still the back catalogue.
+    const std::string ancient = paths.photo_root + "/PPSA01234/a/20250901_000000_00000003.jpg";
+    write_file(ancient, "ancient");
+    dated(ancient, start - 30 * 24 * 3600);
+    watcher.poll(start + 20);
+    CHECK(watcher.seen(ancient));
+    // A folder the scan cannot open is reported.
+    ensure_directory(paths.photo_root + "/PPSA05678/locked");
+    chmod((paths.photo_root + "/PPSA05678/locked").c_str(), 0);
+    watcher.poll(start + 30);
+    if (geteuid() != 0) // root opens it anyway
+    {
+        CHECK_EQ(watcher.last_scan_problems().unreadable, 1);
+        CHECK(ends_with_ci(watcher.last_scan_problems().unreadable_path, "/locked"));
+    }
+    chmod((paths.photo_root + "/PPSA05678/locked").c_str(), 0755);
+}
+
 TEST(watcher_seen_list_text)
 {
     Paths paths;
