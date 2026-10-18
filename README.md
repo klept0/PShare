@@ -14,7 +14,7 @@
 **PShare sends your PS5 captures where you want them, the moment you take
 them.** Take a screenshot or save a clip with the Create button and PShare
 sends it to Discord, Telegram, catbox.moe, a USB drive, a shared folder
-on your PC or a dozen other places, automatically and in the background, even
+on your PC or Mac or a dozen other places, automatically and in the background, even
 after you close the app. It doubles as a media gallery: browse every capture
 by game, watch clips with sound, and open anything on your phone from a QR
 code.
@@ -45,7 +45,7 @@ code.
   new screenshot and clip, waits until a clip has finished writing, and sends
   it. It keeps running after PShare closes.
 - **Many destinations.** Discord webhooks, Telegram bots, catbox.moe,
-  Litterbox, any multipart HTTP endpoint, a USB drive or console folder, and PC shares over SMB 2/3. Account-free hosts
+  Litterbox, any multipart HTTP endpoint, a USB drive or console folder, and PC or Mac shares over SMB 2/3. Account-free hosts
   (Uguu, tmpfiles.org, temp.sh, x0.at, Gofile) are set up out of the box.
 - **Smart routing.** Per-game destinations, size limits with fallbacks (a
   40 MB clip goes to catbox and Discord gets the link), and destinations that
@@ -177,6 +177,39 @@ keep a copy of everything besides the default destination.
 4. Turn it on and use **Send a test**.
 
 A Samba share on Linux or a NAS works the same way.
+</details>
+
+<details>
+<summary><b>Mac shared folder</b> (SMB)</summary>
+
+1. On the Mac, open **System Settings › General › Sharing** and turn on
+   **File Sharing**.
+2. Click **ⓘ** next to it, add a folder under **Shared Folders** with **+**,
+   and give your account **Read & Write**.
+3. Still there, open **Options…**, turn on **Windows File Sharing** for your
+   account and enter its password. Without this the Mac refuses the
+   console's sign-in.
+4. Find the Mac's address: **System Settings › Wi-Fi** (or **Network**) ›
+   **Details…** › **IP address**.
+5. In PShare, open **My Mac**: set **Share** to
+   `smb://<address>/<folder name>`, **User name** to the account's short name
+   (its home folder's name) and **Password** to its password.
+6. Turn it on and use **Send a test**.
+
+Keep the Mac awake (**System Settings › Energy** or **Battery › Options**)
+so uploads don't fail while it sleeps.
+
+No **My Mac** in the list? Your `config.ini` was written by an older
+version: set up **My PC** the same way, or add this to the file and reopen
+PShare:
+
+```ini
+[destination.mac]
+type = smb
+name = My Mac
+url = smb://192.168.1.20/Captures
+enabled = false
+```
 </details>
 
 ## Controls

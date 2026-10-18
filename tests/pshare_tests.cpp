@@ -177,6 +177,7 @@ TEST(default_config_loads)
     CHECK_EQ(config.default_destination, "discord");
     CHECK_EQ(config.find("discord")->fallback, "catbox");
     CHECK_EQ(config.find("discord")->max_mb, 10);
+    CHECK(config.find("mac") != nullptr && config.find("mac")->type == DestinationType::smb);
     // Discord has no webhook yet: the first configured one (catbox) is used.
     const Destination *chosen = config.destination_for("PPSA01234");
     CHECK(chosen != nullptr && chosen->id == "catbox");
