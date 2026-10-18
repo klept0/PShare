@@ -162,9 +162,9 @@ for it. Do this once, on a PC or Mac:
    ```
 
 5. Open [microsoft.com/devicelogin](https://microsoft.com/devicelogin), enter
-   the `user_code` from the answer, sign in and accept. Then, within 15
-   minutes, replace `YOUR_DEVICE_CODE` with the `device_code` from the same
-   answer:
+   the short `user_code` from the answer, sign in and accept. Then, within
+   15 minutes, replace `YOUR_DEVICE_CODE` with the long `device_code` from
+   the same answer (a few hundred characters; not the `user_code`):
 
    ```sh
    curl -d client_id=YOUR_CLIENT_ID -d grant_type=urn:ietf:params:oauth:grant-type:device_code -d device_code=YOUR_DEVICE_CODE https://login.microsoftonline.com/common/oauth2/v2.0/token
