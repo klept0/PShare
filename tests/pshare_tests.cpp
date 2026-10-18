@@ -468,6 +468,48 @@ const FormPart *part(const HttpRequest &request, const std::string &name)
     return nullptr;
 }
 
+TEST(hdr_screenshots_are_found_and_sent_as_files)
+{
+    // The PS5 saves HDR screenshots as JPEG XR (.jxr), beside .dat and .meta.
+    const std::string root = scratch() + "/jxr";
+    const std::string folder = root + "/photo/NPXS40087/PPSA21564/2b3";
+    ensure_directory(folder);
+    ensure_directory(root + "/video");
+    const std::string shot = folder + "/20261018_162130_00868499.jxr";
+    write_file(shot, std::string(4000, 'x'));
+    write_file(folder + "/20261018_162130_00868499.dat", "d");
+    write_file(folder + "/20261018_162130_00868499.meta", "m");
+    Paths paths;
+    paths.photo_root = root + "/photo";
+    paths.video_root = root + "/video";
+    const ScanResult scan = scan_media(paths, ScanOptions{});
+    CHECK_EQ(scan.items.size(), 1u);
+    if (scan.items.size() != 1)
+        return;
+    const MediaItem &item = scan.items[0];
+    CHECK(!item.video() && !item.web_image());
+    CHECK_EQ(std::string(item.content_type()), "image/vnd.ms-photo");
+    CHECK_EQ(item.title_id, "PPSA21564");
+
+    // Telegram can't show it as a photo: it goes as a file, and with the files in an album.
+    const Config config = ready_config();
+    const Destination &telegram = *config.find("telegram");
+    HttpRequest request;
+    std::string error;
+    CHECK(plan_request(telegram, item, caption_info(item, "Game"), {}, &request, &error));
+    CHECK(request.url.find("/sendDocument") != std::string::npos);
+    CHECK(album_kind(telegram, item) == AlbumKind::file);
+    CHECK(!needs_photo_copy(telegram, sample_item(item.path, 20u << 20)));
+
+    // The browser gallery shows a placeholder, not a broken picture.
+    GalleryItem card;
+    card.path = item.path;
+    card.picture = item.web_image();
+    const std::string page = gallery_page({card}, 0, 1, {}, {});
+    CHECK(page.find("HDR screenshot") != std::string::npos);
+    CHECK(page.find("<img") == std::string::npos);
+}
+
 TEST(plans_per_destination)
 {
     const Config config = ready_config();
