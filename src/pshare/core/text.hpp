@@ -50,6 +50,8 @@ std::string expand(std::string_view pattern, const Placeholder *values, std::siz
 bool json_find_string(std::string_view json, std::string_view key, std::string *value);
 // The same for true/false.
 bool json_find_bool(std::string_view json, std::string_view key, bool *value);
+// The same for a non-negative number such as 35 or 1.5 (no exponent).
+bool json_find_number(std::string_view json, std::string_view key, double *value);
 // The first http:// or https:// URL in a text, up to whitespace or a quote.
 bool find_url(std::string_view text, std::string *url);
 

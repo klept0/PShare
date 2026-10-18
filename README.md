@@ -62,6 +62,12 @@ code.
   can be browsed, streamed and downloaded. The setup page lets you paste
   webhooks and tokens from your phone instead of typing them with a
   controller.
+- **Send all, or a selection.** Send everything shown (all captures, one
+  kind, or one game) or the captures you select, skipping what was already
+  sent, to each game's usual destination or one you pick. It runs in the
+  background uploader, finishes after you close PShare, waits out rate limits,
+  and can delete each capture from the console once it has arrived. Selected
+  captures can also be deleted from the console in one go.
 - **History with QR codes.** Every upload, from the app or the background,
   with its link as a QR code to open on your phone. Failed ones can be
   retried.
@@ -296,7 +302,21 @@ The full list is also in the app under **Settings › Controls**.
 | L2 / R2 | All · screenshots · clips |
 | Touchpad | Choose a game and the order (also the two buttons right of the tabs) |
 | L1 / R1 | Switch sections |
-| Options | Menu |
+| Options | Menu: **Select captures**, **Send all shown…**, **Delete all shown…** |
+
+**Selecting captures** (Options › Select captures)
+
+| Button | Action |
+| --- | --- |
+| ✕ | Select or unselect a capture |
+| □ | Send the selected captures… |
+| △ | Select all shown / none |
+| Options | Send selected…, Delete selected… |
+| ○ | Done selecting |
+
+**Send…** asks where to (each game's usual destination, or one you pick),
+whether to skip captures already sent, and whether to delete each one from
+the console once it has arrived. Deleting asks first and can't be undone.
 
 **Clip player** (the same buttons as VLC for PS5 wherever the two apps overlap)
 

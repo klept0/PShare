@@ -8,6 +8,7 @@
 
 #include "pshare/core/text.hpp"
 
+#include <algorithm>
 #include <unistd.h>
 
 namespace pshare
@@ -206,6 +207,10 @@ ResponseVerdict read_response(DestinationType type, long status, const std::stri
     const bool success = status >= 200 && status < 300;
     // Rate limits and server trouble are worth another try; a 4xx is not.
     verdict.retry = status == 0 || status == 408 || status == 429 || status >= 500;
+    // Telegram: "parameters":{"retry_after":35}; Discord: "retry_after":1.5.
+    double wait = 0.0;
+    if (status == 429 && json_find_number(body, "retry_after", &wait))
+        verdict.retry_after = static_cast<int>(std::min(wait, 600.0)) + 1;
     switch (type)
     {
     case DestinationType::discord:
@@ -330,7 +335,16 @@ Attempt send_with_retries(const Config &config, const Destination &destination,
         if (progress != nullptr)
             progress->stage = 4;
         if (pause)
-            usleep(static_cast<useconds_t>(2000000 * attempt)); // 2 s, 4 s, ...
+        {
+            // As long as a rate limit asks, else 2 s, 4 s, ...; a cancel ends the wait.
+            const int seconds = verdict.retry_after > 0 ? verdict.retry_after : 2 * attempt;
+            for (int tenth = 0; tenth < seconds * 10; ++tenth)
+            {
+                if (progress != nullptr && progress->cancel.load())
+                    break;
+                usleep(100000);
+            }
+        }
     }
     return result;
 }
