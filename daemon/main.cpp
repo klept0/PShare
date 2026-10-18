@@ -659,6 +659,7 @@ std::vector<GalleryItem> gallery_items(const Paths &paths, TitleNames *names, in
         item.when = capture.captured.date() + " " + capture.captured.time();
         item.size = human_size(capture.size);
         item.video = capture.video();
+        item.picture = capture.web_image();
         out.push_back(std::move(item));
     }
     return out;
@@ -733,6 +734,7 @@ WebReply serve(const Paths &paths, const WebRequest &request, TitleNames *names)
         info.item.when = capture.captured.date() + " " + capture.captured.time();
         info.item.size = human_size(capture.size);
         info.item.video = capture.video();
+        info.item.picture = capture.web_image();
         if (capture_reads_blank(capture.path))
         {
             std::lock_guard<std::mutex> lock(g_shared.mutex);

@@ -88,6 +88,8 @@ nav a.on{background:var(--coral);border-color:var(--coral);color:#2a0716}
 .cap{background:var(--panel);border:2px solid var(--line);border-radius:14px;overflow:hidden}
 .cap img,.cap video{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#0e0b28}
 .cap .open{display:block;position:relative}
+.cap .hdr{display:flex;flex-direction:column;justify-content:center;align-items:center;width:100%;
+aspect-ratio:16/9;background:#0e0b28;color:var(--muted);font-weight:700;text-align:center}
 .cap .play{position:absolute;right:8px;bottom:8px;width:30px;height:30px;border-radius:50%;
 background:#0e0b28cc;color:#fff;font-size:13px;display:grid;place-items:center}
 .cap p{margin:6px 9px 0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;
@@ -215,11 +217,16 @@ std::string gallery_page(const std::vector<GalleryItem> &items, int page_index, 
             body += html_escape(source + "#t=0.5");
             body += "\"></video><span class=\"play\">&#9654;</span>";
         }
-        else
+        else if (item.picture)
         {
             body += "<img loading=\"lazy\" alt=\"\" src=\"";
             body += html_escape(source);
             body += "\">";
+        }
+        else
+        {
+            // JPEG XR (an HDR screenshot): browsers can't draw it; Download still works.
+            body += "<span class=\"hdr\">HDR screenshot<br><small>JPEG XR</small></span>";
         }
         body += "</a>";
         body += "<p>";
@@ -417,8 +424,11 @@ std::string view_page(const ViewInfo &info)
     else if (item.video)
         media = "<video id=\"media\" playsinline preload=\"auto\" src=\"" + html_escape(source) +
                 "\"></video><button class=\"big\" id=\"big\" aria-label=\"Play\">&#9654;</button>";
-    else
+    else if (item.picture)
         media = "<img id=\"media\" alt=\"\" src=\"" + html_escape(source) + "\">";
+    else
+        media = "<p class=\"blank\"><b>An HDR screenshot (JPEG XR).</b><br>Browsers can't show "
+                "this format; download it, or send it, to open it elsewhere.</p>";
     // JSON for the script; "</" is broken up so no string can end the <script>.
     std::string data = "{\"path\":\"" + json_escape(item.path) +
                        "\",\"video\":" + (item.video && !info.blank ? "true" : "false") +

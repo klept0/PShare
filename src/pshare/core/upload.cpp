@@ -153,7 +153,7 @@ bool plan_request(const Destination &destination, const MediaItem &item, const C
         // Photos over 10 MB and WebM clips only go through as documents.
         const char *method = "sendDocument";
         const char *field = "document";
-        if (!item.video() && item.size <= kTelegramPhotoLimit)
+        if (item.web_image() && item.size <= kTelegramPhotoLimit)
         {
             method = "sendPhoto";
             field = "photo";
@@ -373,7 +373,7 @@ Attempt send_with_retries(const Config &config, const Destination &destination,
 
 bool needs_photo_copy(const Destination &destination, const MediaItem &item)
 {
-    return destination.type == DestinationType::telegram && !item.video() &&
+    return destination.type == DestinationType::telegram && item.web_image() &&
            item.size > kTelegramPhotoLimit;
 }
 
@@ -399,7 +399,8 @@ AlbumKind album_kind(const Destination &destination, const MediaItem &item)
     const std::uint64_t limit = destination.size_limit();
     if (destination.type != DestinationType::telegram || (limit != 0 && item.size > limit))
         return AlbumKind::none;
-    return item.video() ? AlbumKind::file : AlbumKind::photo;
+    // JPEG XR is no photo to Telegram: it goes with the files.
+    return item.web_image() ? AlbumKind::photo : AlbumKind::file;
 }
 
 bool plan_album(const Destination &destination, AlbumKind kind, const std::vector<MediaItem> &items,
@@ -432,7 +433,7 @@ bool plan_album(const Destination &destination, AlbumKind kind, const std::vecto
     std::string media = "[";
     for (std::size_t i = 0; i < items.size(); ++i)
     {
-        const bool photo = !items[i].video() && items[i].size <= kTelegramPhotoLimit;
+        const bool photo = items[i].web_image() && items[i].size <= kTelegramPhotoLimit;
         if (kind == AlbumKind::none || (kind == AlbumKind::photo && !photo))
             return fail("Only photos of up to 10 MB go in a photo album");
         const std::string name = "p" + std::to_string(i);

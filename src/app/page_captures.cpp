@@ -1259,7 +1259,7 @@ class CapturesPage final : public Page
         send_to.chevron = true;
         send_to.tag = action_send_to;
         items.push_back(send_to);
-        if (!capture->item.video())
+        if (capture->item.web_image()) // the app can't draw a JPEG XR screenshot
         {
             ui::ListItem view;
             view.title = "View full screen";
