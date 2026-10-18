@@ -101,28 +101,167 @@ Written by the app for its own choices:
 
 ## Example
 
+The file PShare writes on first start, with every destination it knows.
+Fill in what you use and turn it on with `enabled = true`:
+
 ```ini
+; PShare configuration.
+; The PShare app edits this file (Settings), and so can you: over the phone
+; setup page, or by hand over FTP.
+; Lines starting with ; are comments and are kept when the app saves.
+
 [general]
+; Send new captures as soon as they are saved, while pshared runs.
 auto_upload = true
+upload_screenshots = true
+upload_videos = true
+; Also send captures that existed before pshared first started.
+upload_existing = false
+; Seconds between looks for new captures, and how long a file must stop
+; growing before it is sent (clips are written over several seconds).
+poll_seconds = 5
+settle_seconds = 4
+retries = 3
+; A console notification for every upload.
+notify = true
+keep_logs = false
 default_destination = discord
-also_send = usb
+; Destinations that also get every new capture, for example a USB copy:
+; also_send = usb
+
+; One section per destination: [destination.<id>]
+; type = discord | telegram | catbox | litterbox | http | folder | smb | onedrive
+; message placeholders: {type} {game} {title_id} {date} {time} {file} {size} {link}
 
 [destination.discord]
 type = discord
-url = https://discord.com/api/webhooks/<id>/<token>
+name = Discord
+; Channel settings > Integrations > Webhooks > Copy Webhook URL
+url =
+username = PShare
 message = {type} from **{game}** - {date} {time}
+; Discord refuses attachments over 10 MB on servers without boosts. Bigger
+; files go to the fallback and Discord gets the link instead.
 max_mb = 10
 fallback = catbox
 
 [destination.catbox]
 type = catbox
+name = catbox.moe
+; Optional: your catbox user hash, so uploads show up in your account.
+token =
+
+[destination.litterbox]
+type = litterbox
+name = Litterbox
+; How long the file stays up: 1h, 12h, 24h or 72h.
+litterbox_time = 72h
+enabled = false
+
+[destination.telegram]
+type = telegram
+name = Telegram
+; token from @BotFather, chat_id of the chat or channel to post in.
+token =
+chat_id =
+message = {type} from {game} - {date} {time}
+
+[destination.custom]
+type = http
+name = My server
+url =
+; The form field that carries the file.
+field = file
+; header = Authorization: Bearer secret
+; form.caption = {type} from {game}
+enabled = false
+
+; Hosts that need no account (links last as long as the name says).
+[destination.uguu]
+type = http
+name = Uguu (3 hours)
+url = https://uguu.se/upload
+field = files[]
+max_mb = 128
+
+[destination.tmpfiles]
+type = http
+name = tmpfiles.org (1 hour)
+url = https://tmpfiles.org/api/v1/upload
+field = file
+max_mb = 100
+
+[destination.tempsh]
+type = http
+name = temp.sh (3 days)
+url = https://temp.sh/upload
+field = file
+max_mb = 4000
+
+[destination.x0]
+type = http
+name = x0.at
+url = https://x0.at
+field = file
+max_mb = 222
+
+[destination.gofile]
+type = http
+name = Gofile
+url = https://upload.gofile.io/uploadfile
+field = file
 
 [destination.usb]
 type = folder
+name = USB drive
+; usb: the first USB drive found (/mnt/usb0, /mnt/usb1, /mnt/ext0, /mnt/ext1),
+; or an absolute folder. Captures land in <drive>/PShare/<game>/.
 path = usb
+enabled = false
+
+[destination.pc]
+type = smb
+name = My PC
+; A shared folder on your PC: smb://<pc address>/<share>/<folder>
+; (Windows: right-click a folder > Properties > Sharing).
+url = smb://192.168.1.10/Captures/PS5
+username =
+; The account's password.
+token =
+enabled = false
+
+[destination.mac]
+type = smb
+name = My Mac
+; A shared folder on your Mac: smb://<mac address>/<shared folder>
+; (System Settings > General > Sharing > File Sharing: add the folder, then
+; Options... > turn on Windows File Sharing for your account).
+url = smb://192.168.1.20/Captures
+; The Mac account's short name (the name of its home folder).
+username =
+; The account's password.
+token =
+enabled = false
+
+[destination.onedrive]
+type = onedrive
+name = OneDrive
+; The Application (client) ID of your app registration at portal.azure.com,
+; and a refresh token for it (the README's OneDrive guide shows how).
+client_id =
+token =
+; Captures land in <path>/<game>/ in your OneDrive.
+path = PShare
+enabled = false
 
 [title_destinations]
-PPSA01234 = telegram
+; PPSA01234 = telegram
+
+[title_screenshots]
+; PPSA01234 = false
+
+[title_videos]
+; PPSA01234 = false
 ```
 
 A webhook URL, bot token or refresh token is as good as a password: anyone who has it can
