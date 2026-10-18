@@ -809,6 +809,9 @@ class CapturesPage final : public Page
         bulk_skip_sent_ = true;
         bulk_delete_ = false;
         bulk_to_ = 0;
+        // The title first: the sheet leaves room for it when it opens, and the
+        // form goes under it.
+        bulk_.set_title(bulk_title());
         bulk_.open(feedback);
         const gfx::Rect area = bulk_.content_rect();
         bulk_form_.set_bounds({area.x - 10.0f, area.y, area.w + 20.0f, area.h});
@@ -817,6 +820,12 @@ class CapturesPage final : public Page
         bulk_form_.set_focus(0, true);
         bulk_form_.set_active(true);
         bulk_form_.enter();
+    }
+
+    std::string bulk_title() const
+    {
+        return "Send " + std::to_string(bulk_paths_.size()) +
+               (bulk_paths_.size() == 1 ? " capture" : " captures");
     }
 
     // What the sheet would send now.
@@ -843,7 +852,7 @@ class CapturesPage final : public Page
         }
         const int focus = bulk_form_.focus_id();
         const Config &config = context.model.config();
-        std::vector<std::string> places = {"Each game's usual destination"};
+        std::vector<std::string> places = {"Usual for each game"};
         bulk_ids_ = {""};
         for (const Destination &d : config.destinations)
             if (d.enabled && d.configured())
@@ -853,16 +862,14 @@ class CapturesPage final : public Page
             }
         bulk_to_ = std::min(bulk_to_, static_cast<int>(bulk_ids_.size()) - 1);
         const int count = static_cast<int>(bulk_sendable(context).size());
-        bulk_.set_title("Send " + std::to_string(bulk_paths_.size()) +
-                        (bulk_paths_.size() == 1 ? " capture" : " captures"));
+        bulk_.set_title(bulk_title());
         bulk_form_.clear();
         bulk_form_.add_choice(bulk_to, "Send to", std::move(places), bulk_to_).description =
-            "Usual: each game's own destination, else the default, with size limits and "
-            "fallbacks";
+            "Usual: its game's own destination, else the default";
         bulk_form_.add_toggle(bulk_skip_sent, "Skip ones already sent", bulk_skip_sent_)
             .description = "Captures with a check mark stay where they are";
-        bulk_form_.add_toggle(bulk_delete, "Delete from the console once sent", bulk_delete_)
-            .description = "Each one only after it has arrived; this can't be undone";
+        bulk_form_.add_toggle(bulk_delete, "Delete once sent", bulk_delete_).description =
+            "From the console, each only after it has arrived; can't be undone";
         ui::FormRow &go = bulk_form_.add_action(
             bulk_go,
             count == 0 ? std::string("Nothing to send")
