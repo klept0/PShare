@@ -57,7 +57,7 @@ fallback's link, when there is one).
 | `litterbox` | `litterbox_time` `1h`, `12h`, `24h` or `72h` |
 | `http` | `url`, `field` the form field carrying the file (default `file`), any number of `header = Name: value` lines and `form.<name> = value` extra fields. The link is read from the response |
 | `folder` | `path` `usb` (the first USB drive found) or an absolute folder. Files land in `<folder>/PShare/<game>/` |
-| `smb` | `url` `smb://<pc>/<share>/<folder>`, `username`, `token` the account's password. SMB 2/3 |
+| `smb` | `url` `smb://<pc or mac>/<share>/<folder>`, `username`, `token` the account's password. SMB 2/3: a Windows share, macOS File Sharing (turn on **Windows File Sharing** for the account under Options) or Samba |
 
 The default file includes several hosts that need no account: catbox.moe,
 Litterbox, Uguu, tmpfiles.org, temp.sh, x0.at and Gofile. How long they keep

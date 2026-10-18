@@ -30,7 +30,7 @@ constexpr TypeInfo kTypes[] = {
     {DestinationType::litterbox, "litterbox", "Litterbox (temporary)"},
     {DestinationType::http, "http", "Custom HTTP endpoint"},
     {DestinationType::folder, "folder", "USB drive or folder"},
-    {DestinationType::smb, "smb", "PC shared folder"},
+    {DestinationType::smb, "smb", "PC or Mac shared folder"},
 };
 
 constexpr std::uint64_t kMiB = 1024ull * 1024ull;
@@ -315,6 +315,19 @@ name = My PC
 ; A shared folder on your PC: smb://<pc address>/<share>/<folder>
 ; (Windows: right-click a folder > Properties > Sharing).
 url = smb://192.168.1.10/Captures/PS5
+username =
+; The account's password.
+token =
+enabled = false
+
+[destination.mac]
+type = smb
+name = My Mac
+; A shared folder on your Mac: smb://<mac address>/<shared folder>
+; (System Settings > General > Sharing > File Sharing: add the folder, then
+; Options... > turn on Windows File Sharing for your account).
+url = smb://192.168.1.20/Captures
+; The Mac account's short name (the name of its home folder).
 username =
 ; The account's password.
 token =

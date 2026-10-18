@@ -65,7 +65,7 @@ enum class DestinationType : std::uint8_t
     litterbox,
     http,   // any multipart/form-data endpoint
     folder, // a copy on a drive: a USB stick or the extended storage
-    smb,    // a copy in a shared folder on a PC (Windows share, Samba)
+    smb,    // a copy in a shared folder on a PC or Mac (Windows share, macOS, Samba)
     count,
 };
 
