@@ -26,4 +26,15 @@ static inline size_t pshare_jxr_wcslen(const void *text)
 }
 #define wcslen(s) pshare_jxr_wcslen(s)
 
+/* The encoder's temporary files (strenc.c) need tmpnam, which the console's C
+ * library lacks. PShare never encodes JPEG XR: that path just fails. <stdio.h>
+ * comes first so its own declaration is untouched. */
+#include <stdio.h>
+static inline char *pshare_jxr_tmpnam(char *name)
+{
+    (void)name;
+    return NULL;
+}
+#define tmpnam(s) pshare_jxr_tmpnam(s)
+
 #endif
