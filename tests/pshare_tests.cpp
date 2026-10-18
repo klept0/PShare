@@ -519,10 +519,12 @@ TEST(telegram_albums)
                                         "_0000000" + std::to_string(i) + ".jpg",
                                     1000));
     const MediaItem clip = sample_item("/v/PS5/PPSA01234/20261009_183501_00000002.webm", 1000);
-    CHECK(album_photo(telegram, shots[0]));
-    CHECK(!album_photo(telegram, clip));
-    CHECK(!album_photo(telegram, sample_item(shots[0].path, 11ull << 20))); // a document then
-    CHECK(!album_photo(*config.find("discord"), shots[0]));
+    CHECK(album_kind(telegram, shots[0]) == AlbumKind::photo);
+    CHECK(album_kind(telegram, clip) == AlbumKind::file);
+    const MediaItem big_shot = sample_item(shots[0].path, 11ull << 20); // a 4K PNG, say
+    CHECK(album_kind(telegram, big_shot) == AlbumKind::file);
+    CHECK(album_kind(telegram, sample_item(clip.path, 60ull << 20)) == AlbumKind::none);
+    CHECK(album_kind(*config.find("discord"), shots[0]) == AlbumKind::none);
 
     std::vector<CaptionInfo> captions;
     for (const MediaItem &shot : shots)
@@ -544,6 +546,13 @@ TEST(telegram_albums)
     CHECK(part(request, "chat_id")->value == "-100");
     CHECK(!plan_album(telegram, {shots[0]}, {captions[0]}, &request, &error));
     CHECK(!plan_album(telegram, {shots[0], clip}, {captions[0], captions[0]}, &request, &error));
+    // Files go in albums of their own: big screenshots and clips together.
+    CHECK(plan_album(telegram, {big_shot, clip}, {captions[0], captions[0]}, &request, &error));
+    CHECK(part(request, "media") != nullptr &&
+          part(request, "media")->value.find(R"("type":"document")") != std::string::npos);
+    const MediaItem huge = sample_item(clip.path, 45ull << 20);
+    CHECK(!plan_album(telegram, {huge, big_shot}, {captions[0], captions[0]}, &request,
+                      &error)); // over 50 MB together
 
     FakeServer server;
     const UploadOutcome outcome = upload_album_with(config, telegram, shots, {"Astro"}, nullptr,

@@ -140,12 +140,20 @@ UploadOutcome upload_capture_with(const Config &config, const Destination &desti
                                   UploadProgress *progress, Transport transport, void *user,
                                   bool pause_between_tries);
 
-// Telegram albums. A "Send all" sends up to kAlbumSize screenshots for one
-// chat as a single sendMediaGroup message, each photo with its own caption,
-// instead of one message each. album_photo() says whether a capture can go in
-// one (a screenshot Telegram shows as a photo, within the size limit).
+// Telegram albums. A "Send all" sends up to kAlbumSize captures for one chat
+// as a single sendMediaGroup message, each with its own caption, instead of
+// one message each. Telegram keeps photos and files in albums of their own:
+// screenshots it shows as photos (up to 10 MB) in one kind, everything else
+// (bigger screenshots, clips) as files in the other. An album stays within
+// the destination's size limit (the Bot API's 50 MB).
 constexpr std::size_t kAlbumSize = 10;
-bool album_photo(const Destination &destination, const MediaItem &item);
+enum class AlbumKind : std::uint8_t
+{
+    none, // not for an album: another service, or over the size limit
+    photo,
+    file,
+};
+AlbumKind album_kind(const Destination &destination, const MediaItem &item);
 bool plan_album(const Destination &destination, const std::vector<MediaItem> &items,
                 const std::vector<CaptionInfo> &captions, HttpRequest *request, std::string *error);
 // Sends the album with the usual retries; one outcome for all of it.
