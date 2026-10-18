@@ -40,7 +40,7 @@ Keys every destination accepts:
 | `name` | shown in the app |
 | `enabled` | `false` hides it without deleting it |
 | `message` | caption template (see placeholders below) |
-| `max_mb` | files bigger than this go to `fallback` instead, and this destination gets the link |
+| `max_mb` | files bigger than this go to `fallback` instead, and this destination gets the link. At most the service's own limit: Discord 100 (a server at boost level 3), Telegram 50, catbox 200, Litterbox 1024 |
 | `fallback` | the destination id for files over `max_mb` |
 
 Placeholders in `message`: `{type}` (Screenshot / Clip), `{game}`,
@@ -51,7 +51,7 @@ fallback's link, when there is one).
 
 | Type | Keys |
 | --- | --- |
-| `discord` | `url` the webhook URL (channel settings › Integrations › Webhooks), `username`. Without boosts Discord refuses files over 10 MB, so `max_mb = 10` with a `fallback` is a good pair |
+| `discord` | `url` the webhook URL (channel settings › Integrations › Webhooks), `username`. Discord takes files up to 20 MB without boosts (50 MB at boost level 2, 100 MB at level 3), so `max_mb` at your server's limit with a `fallback` is a good pair |
 | `telegram` | `token` from @BotFather, `chat_id` of the chat or channel |
 | `catbox` | `token` your catbox user hash (optional; uploads then show in your account) |
 | `litterbox` | `litterbox_time` `1h`, `12h`, `24h` or `72h` |
@@ -143,9 +143,10 @@ name = Discord
 url =
 username = PShare
 message = {type} from **{game}** - {date} {time}
-; Discord refuses attachments over 10 MB on servers without boosts. Bigger
-; files go to the fallback and Discord gets the link instead.
-max_mb = 10
+; Discord takes attachments up to 20 MB on servers without boosts (50 MB at
+; boost level 2, 100 MB at level 3). Bigger files go to the fallback and
+; Discord gets the link instead.
+max_mb = 20
 fallback = catbox
 
 [destination.catbox]
@@ -206,7 +207,7 @@ type = http
 name = x0.at
 url = https://x0.at
 field = file
-max_mb = 222
+max_mb = 1024
 
 [destination.gofile]
 type = http

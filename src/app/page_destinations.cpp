@@ -34,7 +34,6 @@ enum RowId
     row_folder,
 };
 
-constexpr int kLimits[] = {0, 10, 25, 50, 100, 200, 500};
 constexpr const char *kKeep[] = {"1h", "12h", "24h", "72h"};
 // Where a "folder" destination copies to: a USB drive, or the console itself.
 constexpr const char *kFolderPaths[] = {"usb", "/data/pshare/Saved"};
@@ -43,6 +42,57 @@ bool also_sends(const Config &config, const std::string &id)
 {
     return std::find(config.also_send.begin(), config.also_send.end(), id) !=
            config.also_send.end();
+}
+
+struct LimitChoice
+{
+    int mb; // 0: the service's own limit (or none)
+    std::string label;
+};
+
+// The size limits offered for a destination: steps up to what its service
+// takes, named after it, and the saved value when it is not one of them.
+std::vector<LimitChoice> limit_choices(const Destination &d)
+{
+    std::vector<LimitChoice> out;
+    const auto mb = [](int value) { return std::to_string(value) + " MB"; };
+    switch (d.type)
+    {
+    case DestinationType::discord:
+        out = {{10, mb(10)},
+               {0, "20 MB (no boosts)"},
+               {50, "50 MB (boost level 2)"},
+               {100, "100 MB (boost level 3)"}};
+        break;
+    case DestinationType::telegram:
+        out = {{10, mb(10)}, {25, mb(25)}, {0, "50 MB (the Bot API's limit)"}};
+        break;
+    case DestinationType::catbox:
+        out = {{50, mb(50)}, {100, mb(100)}, {0, "200 MB (catbox's limit)"}};
+        break;
+    case DestinationType::litterbox:
+        out = {{100, mb(100)}, {200, mb(200)}, {500, mb(500)}, {0, "1 GB (Litterbox's limit)"}};
+        break;
+    default:
+        out = {{0, "No limit"}};
+        for (const int value : {10, 25, 50, 100, 200, 500, 1024, 4000})
+            out.push_back({value, value >= 1024 && value % 1024 == 0
+                                      ? std::to_string(value / 1024) + " GB"
+                                      : mb(value)});
+        break;
+    }
+    if (std::none_of(out.begin(), out.end(),
+                     [&](const LimitChoice &c) { return c.mb == d.max_mb; }))
+    {
+        // "The service's own limit" sorts by that limit (none sorts first).
+        Destination plain = d;
+        plain.max_mb = 0;
+        const int own = static_cast<int>(plain.size_limit() >> 20);
+        const auto at = std::find_if(out.begin(), out.end(), [&](const LimitChoice &c)
+                                     { return (c.mb != 0 ? c.mb : own) > d.max_mb; });
+        out.insert(at, {d.max_mb, mb(d.max_mb)});
+    }
+    return out;
 }
 
 enum class Zone : std::uint8_t
@@ -364,19 +414,24 @@ class DestinationsPage final : public Page
             form_.add_choice(row_keep, "Keep files for", {"1 hour", "12 hours", "1 day", "3 days"},
                              keep);
         }
-        if (d->type == DestinationType::discord || d->type == DestinationType::telegram)
+        if (d->has_size_limit())
         {
             std::vector<std::string> limits;
             int limit = 0;
-            for (std::size_t i = 0; i < std::size(kLimits); ++i)
+            limit_values_.clear();
+            for (LimitChoice &choice : limit_choices(*d))
             {
-                limits.push_back(kLimits[i] == 0 ? "Service limit"
-                                                 : std::to_string(kLimits[i]) + " MB");
-                if (kLimits[i] == d->max_mb)
-                    limit = static_cast<int>(i);
+                if (choice.mb == d->max_mb)
+                    limit = static_cast<int>(limits.size());
+                limit_values_.push_back(choice.mb);
+                limits.push_back(std::move(choice.label));
             }
+            const bool posts = d->type == DestinationType::discord ||
+                               d->type == DestinationType::telegram ||
+                               d->type == DestinationType::http;
             form_.add_choice(row_limit, "Size limit", std::move(limits), limit).description =
-                "Bigger files go to the fallback, and the link is posted instead";
+                posts ? "Bigger files go to the fallback, and the link is posted instead"
+                      : "Bigger files go to the fallback host instead";
             std::vector<std::string> fallbacks = {"None"};
             fallback_ids_ = {""};
             int chosen = 0;
@@ -448,9 +503,12 @@ class DestinationsPage final : public Page
             d->litterbox_time = kKeep[std::clamp(form_.choice_index(row_keep), 0, 3)];
             break;
         case row_limit:
-            d->max_mb = kLimits[std::clamp(form_.choice_index(row_limit), 0,
-                                           static_cast<int>(std::size(kLimits)) - 1)];
+        {
+            const int index = form_.choice_index(row_limit);
+            if (index >= 0 && index < static_cast<int>(limit_values_.size()))
+                d->max_mb = limit_values_[static_cast<std::size_t>(index)];
             break;
+        }
         case row_fallback:
         {
             const int index = form_.choice_index(row_fallback);
@@ -629,6 +687,7 @@ class DestinationsPage final : public Page
     ui::Form form_;
     ui::InputPrompt prompt_;
     std::vector<std::string> fallback_ids_;
+    std::vector<int> limit_values_; // the size limit choices' values, in order
     int editing_ = 0;
     int form_index_owner_ = -2;
     bool focused_ = false;
