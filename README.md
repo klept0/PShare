@@ -180,6 +180,11 @@ itself (in `/data/pshare/onedrive-<id>.token`); if OneDrive goes unused for
 about 90 days, or you change your password, repeat steps 4–6. Treat the
 refresh token like a password.
 
+If `curl` answers `AADSTS50059`, the app was registered for your directory
+only: in its **Authentication** page set the supported account types to
+**Accounts in any organizational directory and personal Microsoft
+accounts**. `AADSTS7000218` means **Allow public client flows** is still off.
+
 No **OneDrive** in the list? Your `config.ini` was written by an older
 version: add this to the file and reopen PShare:
 
