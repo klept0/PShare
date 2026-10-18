@@ -840,12 +840,13 @@ int Model::send_batch(const std::vector<std::string> &paths, const std::string &
             {
                 refused = take;
             }
-            batch_last_ = last;
             post(
                 [first, last, refused](Model &model)
                 {
                     model.batch_.first_id = first;
                     model.batch_.last_id = last;
+                    // Watched only from here, so its end cannot come before its numbers.
+                    model.batch_last_ = last;
                     // What pshared would not take (a clip it reads as zeros, or
                     // no pshared at all), the app sends itself.
                     if (!refused.empty())
