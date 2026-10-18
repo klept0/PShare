@@ -66,6 +66,11 @@ padding:16px;margin:14px 0}
 .tag{font-size:12px;font-weight:600;color:var(--bg);background:var(--aqua);
 border-radius:99px;padding:2px 9px}
 .off .tag{background:var(--muted)}
+summary{cursor:pointer;list-style:none}summary::-webkit-details-marker{display:none}
+summary h2::after{content:"\203A";margin-left:auto;font-size:24px;color:var(--muted);
+transition:transform .15s}
+details[open] summary h2::after{transform:rotate(90deg)}
+details.card:not([open]) h2{margin:0}
 label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
 input,select,textarea{width:100%;font:inherit;color:var(--text);background:#17134180;
 border:2px solid var(--line);border-radius:12px;padding:10px 12px}
@@ -747,12 +752,14 @@ std::string setup_page(const Config &config, std::string_view notice, bool notic
     for (const Destination &d : config.destinations)
     {
         const std::string prefix = "d." + d.id + ".";
-        body += d.enabled ? "<section class=\"card\">" : "<section class=\"card off\">";
-        body += "<h2>";
+        // Each destination folds up under its name, so the page stays short. The
+        // fields of a closed one are still sent, and an empty secret keeps its value.
+        body += d.enabled ? "<details class=\"card\">" : "<details class=\"card off\">";
+        body += "<summary><h2>";
         body += html_escape(d.display_name());
         body += " <span class=\"tag\">";
         body += html_escape(type_label(d.type));
-        body += "</span></h2>";
+        body += "</span></h2></summary>";
         yes_no(&body, prefix + "enabled", "Enabled", d.enabled);
         yes_no(&body, prefix + "also", "Also gets every new capture",
                std::find(config.also_send.begin(), config.also_send.end(), d.id) !=
@@ -819,7 +826,7 @@ std::string setup_page(const Config &config, std::string_view notice, bool notic
                        "catbox");
             body += "</div></div>";
         }
-        body += "</section>";
+        body += "</details>";
     }
     body += "<p><small>Placeholders for messages: {type} {game} {title_id} {date} {time} "
             "{file} {size} {link}</small></p>";

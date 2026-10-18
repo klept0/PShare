@@ -775,6 +775,8 @@ TEST(setup_form_changes_the_config)
     CHECK_EQ(errors.size(), 3u);
     const std::string page = setup_page(config, "Saved", false);
     CHECK(page.find("name=\"d.discord.url\"") != std::string::npos);
+    // Destinations fold up under their names; their fields are still in the form.
+    CHECK(page.find("<details class=\"card\"><summary><h2>Discord") != std::string::npos);
     // Saved secrets never go back to the browser; an empty field keeps them.
     CHECK(page.find("webhooks/2/x") == std::string::npos);
     CHECK(page.find("123:abc") == std::string::npos);
