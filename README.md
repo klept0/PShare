@@ -106,8 +106,9 @@ phone**). Open the one you want:
 
 Discord takes files up to 20 MB on servers without boosts, 50 MB at boost
 level 2 and 100 MB at level 3. Set **Size limit** to match your server and
-pick a **Big files go to** host (catbox by default) so bigger clips are
-uploaded there and Discord gets the link.
+pick where **Big files go to**: a file host (catbox by default) or OneDrive,
+and Discord gets a link anyone can open; or your Mac, PC or a USB drive, and
+Discord gets a note saying where the clip was saved.
 </details>
 
 <details>
@@ -337,6 +338,12 @@ the console once it has arrived. Deleting asks first and can't be undone.
 the PC uses the console's buttons. On a keyboard: Space play/pause, ← / →
 10 s, `[` / `]` 30 s, `S` send, `T` send to…, `,` / `.` newer / older, Esc
 back. On a phone, the buttons under the picture.
+
+**Browser gallery** (Captures, on the browser page): tick captures to
+**Send** or **Delete…** them, or **Send all** what the game filter shows,
+every page of it, skipping what was already sent. A delete asked from the
+browser waits for **Delete** on the PS5 (PShare must be open), so nobody on
+your network can delete captures without you.
 
 ## Configuration
 

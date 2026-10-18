@@ -204,6 +204,8 @@ void Model::status_loop()
                 [status, over, note](Model &model)
                 {
                     model.daemon_ = status;
+                    if (status.delete_ask > 0 && !model.delete_request_busy_)
+                        model.fetch_delete_request();
                     Batch &batch = model.batch_;
                     if (!batch.active || batch.last_id == 0)
                         return;
@@ -595,6 +597,51 @@ void Model::delete_pending()
                     model.events_.push_back(std::move(event));
                     model.rescan();
                 });
+        });
+}
+
+void Model::fetch_delete_request()
+{
+    delete_request_busy_ = true;
+    io(
+        [this]
+        {
+            std::string reply;
+            std::vector<std::string> paths;
+            if (daemon_command("DELETEASK", &reply, 2000) && starts_with(reply, "ok"))
+                for (const std::string &line : split(reply, '\n'))
+                    if (starts_with(line, "/"))
+                        paths.emplace_back(trim(line));
+            post(
+                [paths](Model &model)
+                {
+                    // Only captures the app knows; the rest is not its to delete.
+                    model.delete_request_.clear();
+                    for (const std::string &path : paths)
+                        if (model.find_capture(path) != nullptr)
+                            model.delete_request_.push_back(path);
+                    if (model.delete_request_.empty())
+                    {
+                        model.answer_delete_request(false);
+                        return;
+                    }
+                    ModelEvent event;
+                    event.kind = EventKind::delete_asked;
+                    model.events_.push_back(std::move(event));
+                });
+        });
+}
+
+void Model::answer_delete_request(bool allow)
+{
+    if (allow)
+        delete_captures(delete_request_);
+    delete_request_.clear();
+    io(
+        [this]
+        {
+            daemon_command("DELETEASK clear", nullptr);
+            post([](Model &model) { model.delete_request_busy_ = false; });
         });
 }
 
