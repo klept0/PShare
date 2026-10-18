@@ -73,7 +73,7 @@ std::uint64_t Destination::size_limit() const
     switch (type)
     {
     case DestinationType::discord:
-        return 10 * kMiB; // servers without boosts
+        return 20 * kMiB; // servers without boosts (since August 2026)
     case DestinationType::telegram:
         return 50 * kMiB; // the Bot API's upload ceiling
     case DestinationType::catbox:
@@ -82,6 +82,23 @@ std::uint64_t Destination::size_limit() const
         return 1024 * kMiB;
     default:
         return 0; // the server decides
+    }
+}
+
+int Destination::service_ceiling_mb() const
+{
+    switch (type)
+    {
+    case DestinationType::discord:
+        return 100; // boost level 3; level 2 takes 50
+    case DestinationType::telegram:
+        return 50;
+    case DestinationType::catbox:
+        return 200;
+    case DestinationType::litterbox:
+        return 1024;
+    default:
+        return 0;
     }
 }
 
@@ -233,9 +250,10 @@ name = Discord
 url =
 username = PShare
 message = {type} from **{game}** - {date} {time}
-; Discord refuses attachments over 10 MB on servers without boosts. Bigger
-; files go to the fallback and Discord gets the link instead.
-max_mb = 10
+; Discord takes attachments up to 20 MB on servers without boosts (50 MB at
+; boost level 2, 100 MB at level 3). Bigger files go to the fallback and
+; Discord gets the link instead.
+max_mb = 20
 fallback = catbox
 
 [destination.catbox]
@@ -296,7 +314,7 @@ type = http
 name = x0.at
 url = https://x0.at
 field = file
-max_mb = 222
+max_mb = 1024
 
 [destination.gofile]
 type = http

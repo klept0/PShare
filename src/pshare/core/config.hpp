@@ -103,10 +103,18 @@ struct Destination
     {
         return name.empty() ? id : name;
     }
-    // The service's own ceiling in bytes, or max_mb when set.
+    // The service's own limit in bytes, or max_mb when set.
     std::uint64_t size_limit() const;
+    // The most the service can take in MB whatever the setting (Discord: a
+    // server at boost level 3), 0 when it states none. max_mb stays at or below it.
+    int service_ceiling_mb() const;
     // True when the fields the type needs are filled in.
     bool configured() const;
+    // Takes a size limit, with a fallback host for bigger files: the HTTP services.
+    bool has_size_limit() const
+    {
+        return !local() && type != DestinationType::onedrive;
+    }
     // Copies to a drive or a share instead of going over HTTP.
     bool local() const
     {
