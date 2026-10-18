@@ -198,6 +198,18 @@ A Samba share on Linux or a NAS works the same way.
 
 Keep the Mac awake (**System Settings › Energy** or **Battery › Options**)
 so uploads don't fail while it sleeps.
+
+No **My Mac** in the list? Your `config.ini` was written by an older
+version: set up **My PC** the same way, or add this to the file and reopen
+PShare:
+
+```ini
+[destination.mac]
+type = smb
+name = My Mac
+url = smb://192.168.1.20/Captures
+enabled = false
+```
 </details>
 
 ## Controls
