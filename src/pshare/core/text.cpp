@@ -331,6 +331,23 @@ bool json_find_bool(std::string_view json, std::string_view key, bool *value)
     return false;
 }
 
+bool json_find_number(std::string_view json, std::string_view key, double *value)
+{
+    std::size_t p = after_key(json, key, 0);
+    if (p == std::string_view::npos || p >= json.size() || json[p] < '0' || json[p] > '9')
+        return false;
+    double out = 0.0;
+    for (; p < json.size() && json[p] >= '0' && json[p] <= '9'; ++p)
+        out = out * 10.0 + (json[p] - '0');
+    if (p < json.size() && json[p] == '.')
+        for (double scale = 0.1; ++p < json.size() && json[p] >= '0' && json[p] <= '9';
+             scale /= 10.0)
+            out += (json[p] - '0') * scale;
+    if (value)
+        *value = out;
+    return true;
+}
+
 bool find_url(std::string_view raw, std::string *url)
 {
     // JSON writers may escape the slashes of URLs ("https:\/\/...").

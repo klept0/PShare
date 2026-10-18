@@ -59,7 +59,7 @@ data asked for.
 | `PAUSE` / `RESUME` | stop or restart automatic uploads |
 | `RELOAD` | read `config.ini` again |
 | `RESCAN` | look at the capture folders now |
-| `QUEUE [<destination>\t]<path>` | `ok <id>`: send this file now |
+| `QUEUE [<destination>\t]<path>[\t<flags>]` | `ok <id>`: send this file now. Flags, comma separated: `delete` deletes the capture once it is sent; `batch` marks one of a Send all (no notification each, one summary when the queue empties) |
 | `RESULT <id>` | `pending`, `ok <destination>\t<link>`, `failed <destination>\t<error>` or `unknown` |
 | `CANCEL` | stop the current upload and drop the queue |
 | `SETUP on` / `SETUP off` | open the web page for 30 minutes, or close it |
@@ -73,6 +73,15 @@ With `[app] background_sends = true` (the default) the thread hands it to
 pshared: start it if needed, `QUEUE`, then poll `RESULT` and `STATUS` for
 progress, which the top bar shows. pshared writes the history line, so a long
 clip keeps uploading after the app closes.
+
+**Send all** (`Model::send_batch`) hands a whole batch to pshared at once,
+one `QUEUE` per capture with the `batch` flag (and `delete` when asked), so
+it finishes after the app closes. pshared takes its queue one job at a time,
+so `CANCEL` stops the rest of the batch. The app follows it through
+`STATUS` (`job=`) and asks `RESULT` about the last job to know when it is
+over, then counts what was sent from the history. A capture is deleted only
+after it was sent successfully. Rate limits (HTTP 429) are waited out for as
+long as the service asks (`retry_after` from Telegram and Discord).
 
 When pshared cannot run (no loader on 9021, the ELF missing) the app sends
 the file itself with libcurl and writes the history line.
