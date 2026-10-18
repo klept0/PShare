@@ -99,6 +99,9 @@ Written by the app for its own choices:
 | `onedrive-<id>.token` | the newest refresh token Microsoft handed back for that OneDrive destination; delete it to go back to the one in the config |
 | `thumbs/` | the app's thumbnail cache; safe to delete |
 
+> [!CAUTION]
+> A webhook URL, bot token or refresh token is as good as a password: anyone who has it can post to your channel. Leave it out of bug reports and screenshots.
+
 ## Example
 
 The file PShare writes on first start, with every destination it knows.
