@@ -98,9 +98,10 @@ phone**). Open the one you want:
 2. Name it if you like, then **Copy Webhook URL**.
 3. Paste it into **Discord › Webhook URL** in PShare.
 
-Without server boosts Discord refuses files over 10 MB. Keep **Size limit**
-at 10 MB and pick a **Big files go to** host (catbox by default) so bigger
-clips are uploaded there and Discord gets the link.
+Discord takes files up to 20 MB on servers without boosts, 50 MB at boost
+level 2 and 100 MB at level 3. Set **Size limit** to match your server and
+pick a **Big files go to** host (catbox by default) so bigger clips are
+uploaded there and Discord gets the link.
 </details>
 
 <details>
@@ -136,6 +137,17 @@ Both work without an account and are ready out of the box.
 Account-free hosts, set up out of the box. Turn one on, or pick it as the
 default or as Discord's **Big files go to**. How long each keeps files is up
 to the host (the app shows it in the name).
+
+| Host | Largest file |
+| --- | --- |
+| Uguu | 128 MB |
+| tmpfiles.org | 100 MB |
+| temp.sh | 4 GB |
+| x0.at | 1 GB (bigger files are kept for less time) |
+| Gofile | no stated limit |
+
+Their **Size limit** is set to match; a host can also send bigger files on to
+a **Big files go to** host of its own.
 </details>
 
 <details>
@@ -318,7 +330,7 @@ also_send = usb
 type = discord
 url = https://discord.com/api/webhooks/<id>/<token>
 message = {type} from **{game}** - {date} {time}
-max_mb = 10
+max_mb = 20
 fallback = catbox
 
 [title_destinations]
@@ -373,8 +385,9 @@ to the uploader, so the browser page, downloads and uploads all work. Keep
 PShare open, or reload the jailbreak.
 
 **Discord does not accept my clip.**
-Without server boosts Discord takes files up to 10 MB. Keep `max_mb = 10` and
-a `fallback` so bigger clips go to a file host and Discord gets the link.
+Without server boosts Discord takes files up to 20 MB (50 MB at boost level
+2, 100 MB at level 3). Set `max_mb` to your server's limit and keep a
+`fallback` so bigger clips go to a file host and Discord gets the link.
 
 ## Contributing
 

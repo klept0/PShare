@@ -177,7 +177,7 @@ TEST(default_config_loads)
     CHECK(config.find("catbox") != nullptr);
     CHECK_EQ(config.default_destination, "discord");
     CHECK_EQ(config.find("discord")->fallback, "catbox");
-    CHECK_EQ(config.find("discord")->max_mb, 10);
+    CHECK_EQ(config.find("discord")->max_mb, 20);
     CHECK(config.find("mac") != nullptr && config.find("mac")->type == DestinationType::smb);
     // Discord has no webhook yet: the first configured one (catbox) is used.
     const Destination *chosen = config.destination_for("PPSA01234");
@@ -718,6 +718,30 @@ TEST(setup_requests_and_forms)
     CHECK_EQ(form.at("d.discord.url"), "a b");
     CHECK_EQ(url_decode("%41%2f%zz"), "A/%zz");
     CHECK_EQ(html_escape("<a href=\"x\">"), "&lt;a href=&quot;x&quot;&gt;");
+}
+
+TEST(size_limits_stay_within_the_service)
+{
+    Config config = ready_config();
+    Destination &discord = *config.find("discord");
+    CHECK_EQ(discord.service_ceiling_mb(), 100);
+    discord.max_mb = 0;
+    CHECK_EQ(discord.size_limit(), 20ull << 20);
+    CHECK(discord.has_size_limit());
+    CHECK(config.find("uguu")->has_size_limit());
+    CHECK(!config.find("usb")->has_size_limit());
+    CHECK(!config.find("onedrive")->has_size_limit());
+    CHECK_EQ(config.find("x0")->max_mb, 1024);
+    std::vector<std::string> errors;
+    CHECK_EQ(apply_setup_form({{"d.discord.max_mb", "150"}, {"d.catbox.max_mb", "100"}}, &config,
+                              &errors),
+             1);
+    CHECK_EQ(errors.size(), 1u);
+    CHECK_EQ(discord.max_mb, 0);
+    CHECK_EQ(config.find("catbox")->max_mb, 100);
+    const std::string page = setup_page(config, "", false);
+    CHECK(page.find("name=\"d.catbox.max_mb\"") != std::string::npos);
+    CHECK(page.find("name=\"d.usb.max_mb\"") == std::string::npos);
 }
 
 TEST(setup_form_changes_the_config)
