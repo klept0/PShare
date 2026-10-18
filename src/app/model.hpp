@@ -99,6 +99,7 @@ enum class EventKind : std::uint8_t
     unreadable,     // captures that read back as zeros were found (unreadable_unasked())
     deleted,        // delete_captures() finished: ok, title, detail
     batch_finished, // a send_batch() ended: ok (all sent), title, detail
+    delete_asked,   // a browser asks to delete captures: delete_request(), then answer it
     note,
 };
 
@@ -179,6 +180,13 @@ class Model
     // Deletes what pshared sent with "delete once sent" but was not allowed to
     // delete itself (Paths::pending_deletes); posts EventKind::deleted when any went.
     void delete_pending();
+    // A browser asked to delete these (the gallery page). Nothing goes until
+    // the player says so on the console: answer_delete_request(true).
+    const std::vector<std::string> &delete_request() const
+    {
+        return delete_request_;
+    }
+    void answer_delete_request(bool allow);
 
     // ---- configuration ----
     const Config &config() const
@@ -306,6 +314,9 @@ class Model
         bool daemon_done = false; // pshared has answered for its last one
         int done = 0;
     } batch_;
+    std::vector<std::string> delete_request_; // asked on the console now
+    bool delete_request_busy_ = false;        // being fetched or asked
+    void fetch_delete_request();
     // Batch jobs still in the app's own queue (or being sent by it).
     bool app_batch_pending() const;
 

@@ -63,6 +63,7 @@ data asked for.
 | `RESULT <id>` | `pending`, `ok <destination>\t<link>`, `failed <destination>\t<error>` or `unknown` |
 | `CANCEL` | stop the current upload and drop the queue |
 | `SETUP on` / `SETUP off` | open the web page for 30 minutes, or close it |
+| `DELETEASK` / `DELETEASK clear` | the captures a browser asked to delete (`ok`, then one path per line), or forget them once the app has asked. `STATUS` says `delete_ask=<n>` while there are some; the app asks on the console and deletes only if the player says yes |
 | `QUIT` | exit |
 | `RELAY` | the app's end of the clip relay (below): `none`, or `<first>\t<last>\t<path>` and then the app sends those bytes |
 
@@ -115,6 +116,7 @@ saved value).
 | `/v/<file name>`, `/view?p=<capture>` | one capture full screen with the app's controls (keyboard, touch, or a controller through the Gamepad API) |
 | `POST /send`, `/result?id=` | send from the browser, like `QUEUE` / `RESULT` |
 | `/file?p=<capture>` | the file itself, with `Range` support so clips stream; only paths under the capture folders |
+| `POST /act` | the gallery's selection: `act=send` / `delete` with the ticked `s.<n>` paths, or `act=send-all` with the `game` filter; `d` the destination, `skip` to leave out what was sent. Sends go through the batch queue; a delete only becomes a question on the console (`DELETEASK`), and is refused while the app is closed |
 | `POST /save` | writes the settings form back to `config.ini` |
 
 ## The clip relay

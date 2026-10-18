@@ -76,6 +76,7 @@ App::App(Model &model, Thumbs &thumbs, const ui::Fonts &fonts, Art art, VideoPla
     menu_.style.theme = theme();
     menu_.style.width = 420.0f;
     menu_.style.scrim = 0.25f;
+    delete_ask_.style.theme = theme();
 
     toasts_.style.theme = theme();
     toasts_.style.anchor = ui::ToastAnchor::bottom_right;
@@ -178,6 +179,36 @@ void App::handle_event(const ModelEvent &event, ui::Feedback &feedback)
         toasts_.push(ui::StatusKind::danger, event.title,
                      "PShare has no write access to /data/pshare");
         break;
+    case EventKind::delete_asked:
+    {
+        // Asked here, whatever page is up: only the player on the console can say yes.
+        const std::vector<std::string> &paths = model_.delete_request();
+        int clips = 0;
+        int unsent = 0;
+        for (const std::string &path : paths)
+            if (const Capture *capture = model_.find_capture(path))
+            {
+                clips += capture->item.video() ? 1 : 0;
+                unsent += capture->uploaded ? 0 : 1;
+            }
+        const int count = static_cast<int>(paths.size());
+        ui::DialogContent content;
+        content.icon = ui::StatusKind::warning;
+        content.title = "Your phone asks to delete " + std::to_string(count) +
+                        (count == 1 ? " capture" : " captures");
+        content.body =
+            "Someone on the PShare browser page asked to delete " + std::to_string(count - clips) +
+            " screenshots and " + std::to_string(clips) + " clips from this PS5." +
+            (unsent > 0 ? "\n" + std::to_string(unsent) + " of them " +
+                              (unsent == 1 ? "hasn't" : "haven't") + " been sent anywhere."
+                        : std::string()) +
+            "\nDeleting can't be undone.";
+        content.buttons = {{"Keep", ui::ButtonKind::secondary},
+                           {"Delete", ui::ButtonKind::primary, true}};
+        content.default_button = 0;
+        delete_ask_.open(std::move(content), feedback);
+        break;
+    }
     case EventKind::deleted:
     case EventKind::batch_finished:
         toasts_.push(event.ok ? ui::StatusKind::success : ui::StatusKind::danger, event.title,
@@ -236,7 +267,14 @@ void App::update(const InputFrame &input, float dt, ui::Feedback &feedback)
     }
 
     Page &page = *pages_[static_cast<std::size_t>(current_)];
-    if (link_panel_.is_open())
+    if (delete_ask_.is_open())
+    {
+        if (delete_ask_.handle(input, feedback) == ui::Event::activated)
+            model_.answer_delete_request(delete_ask_.choice() == 1);
+        else if (!delete_ask_.is_open())
+            model_.answer_delete_request(false); // closed with Circle: keep them
+    }
+    else if (link_panel_.is_open())
     {
         if (link_panel_.handle(input, feedback) == ui::Event::cancelled &&
             model_.daemon().setup_port > 0)
@@ -302,6 +340,7 @@ void App::update(const InputFrame &input, float dt, ui::Feedback &feedback)
         each->update(dt, feedback, context_);
     link_panel_.update(dt);
     menu_.update(dt);
+    delete_ask_.update(dt);
     toasts_.update(dt, feedback);
     upload_show_.target = upload_.active || upload_.batch ? 1.0f : 0.0f;
     upload_show_.update(dt, 10.0f);
@@ -425,7 +464,12 @@ void App::draw_hints(ui::Canvas &canvas) const
     ui::Hint hints[8];
     int count = 0;
     const Page &page = *pages_[static_cast<std::size_t>(current_)];
-    if (link_panel_.is_open())
+    if (delete_ask_.is_open())
+    {
+        hints[count++] = {ui::Button::cross, "Select"};
+        hints[count++] = {ui::Button::circle, "Keep"};
+    }
+    else if (link_panel_.is_open())
     {
         hints[count++] = {ui::Button::circle, "Close"};
     }
@@ -450,7 +494,7 @@ void App::draw_hints(ui::Canvas &canvas) const
     layout.font = &fonts_.semibold;
     const ui::GlyphStyle glyphs = ui::GlyphStyle::dark();
     ui::draw_hints(canvas.list, fonts_, glyphs, hints, count, kSafe, false, layout);
-    if (!page.modal() && !link_panel_.is_open() && !menu_.is_open())
+    if (!page.modal() && !link_panel_.is_open() && !menu_.is_open() && !delete_ask_.is_open())
     {
         const ui::Hint right[] = {{ui::Button::l1, "Sections", ui::Button::r1},
                                   {ui::Button::options, "Menu"}};
@@ -529,6 +573,7 @@ void App::draw_overlay(gfx::DrawList &list, std::uint32_t glass)
     draw_upload_bar(canvas);
     link_panel_.draw(canvas);
     menu_.draw(canvas);
+    delete_ask_.draw(canvas);
     toasts_.draw(canvas);
     draw_intro(canvas);
 }
@@ -548,8 +593,8 @@ void App::compose(gfx::Renderer &renderer)
         renderer.backdrop(sky);
     renderer.draw(scene_);
     const bool glass = pages_[static_cast<std::size_t>(current_)]->wants_glass() ||
-                       link_panel_.visible() || menu_.visible() || upload_show_.value > 0.01f ||
-                       !toasts_.empty();
+                       link_panel_.visible() || menu_.visible() || delete_ask_.visible() ||
+                       upload_show_.value > 0.01f || !toasts_.empty();
     if (glass)
         renderer.glass();
     draw_overlay(overlay_, glass ? renderer.glass_texture() : 0);

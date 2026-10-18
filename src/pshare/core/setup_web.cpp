@@ -93,6 +93,18 @@ background:#0e0b28cc;color:#fff;font-size:13px;display:grid;place-items:center}
 .cap p{margin:6px 9px 0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;
 text-overflow:ellipsis}
 .cap small{display:block;margin:0 9px}
+.cap{position:relative}
+.tick{position:absolute;left:6px;top:6px;z-index:2;width:30px;height:30px;margin:0;
+accent-color:var(--coral);cursor:pointer}
+.sendall{display:grid;grid-template-columns:1fr auto;gap:8px 10px;align-items:center}
+.sendall label{margin:0}.sendall button{margin:0;width:auto;padding:12px 16px}
+.check{display:flex;gap:8px;align-items:center;color:var(--text);font-size:14px}
+.check input{width:20px;height:20px;accent-color:var(--aqua)}
+.bar{position:sticky;bottom:10px;z-index:5;display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+margin-top:14px;padding:10px;border-radius:16px;background:var(--panel);border:2px solid var(--coral)}
+.bar b{flex:1 1 100%}.bar button{flex:1;margin:0;padding:11px;font-size:15px}
+.bar .del{background:var(--coral);box-shadow:0 5px 0 #a8355a}
+.bar .page{background:var(--line);color:var(--text);box-shadow:none}
 .cap a.dl{display:block;margin:6px 9px 9px;text-align:center;font-size:13px;font-weight:700;
 color:var(--bg);background:var(--aqua);border-radius:9px;padding:6px;text-decoration:none}
 .pages{display:flex;justify-content:space-between;margin:16px 0}
@@ -168,12 +180,33 @@ std::string gallery_page(const std::vector<GalleryItem> &items, int page_index, 
     if (items.empty())
         body += "<div class=\"card\"><h2>No captures yet</h2><p><small>Take a screenshot "
                 "with the Create button.</small></p></div>";
+    // One form for sending and deleting (see GalleryFilter); it comes back here.
+    body += "<form method=\"post\" action=\"/act\" id=\"act\">";
+    body += "<input type=\"hidden\" name=\"game\" value=\"" + html_escape(filter.game) + "\">";
+    body += "<input type=\"hidden\" name=\"order\" value=\"";
+    body += filter.oldest_first ? "old" : "new";
+    body += "\"><input type=\"hidden\" name=\"page\" value=\"" + std::to_string(page_index) + "\">";
+    if (!items.empty())
+    {
+        body += "<div class=\"card sendall\"><select name=\"d\"><option value=\"\">Each "
+                "game's usual destination</option>";
+        for (const auto &[id, name] : filter.destinations)
+            body += "<option value=\"" + html_escape(id) + "\">" + html_escape(name) + "</option>";
+        body += "</select><button name=\"act\" value=\"send-all\">Send all " +
+                std::to_string(filter.total) +
+                "</button><label class=\"check\"><input type=\"checkbox\" name=\"skip\" "
+                "checked> Skip ones already sent</label></div>";
+    }
     body += "<div class=\"grid\">";
+    int index = 0;
     for (const GalleryItem &item : items)
     {
         const std::string source = "/file?p=" + url_encode(item.path);
         const std::string view = "/view?p=" + url_encode(item.path);
-        body += "<div class=\"cap\"><a class=\"open\" href=\"";
+        body += "<div class=\"cap\"><input class=\"tick\" type=\"checkbox\" aria-label=\"Select\" "
+                "name=\"s." +
+                std::to_string(index++) + "\" value=\"" + html_escape(item.path) + "\">";
+        body += "<a class=\"open\" href=\"";
         body += html_escape(view);
         body += "\">";
         if (item.video)
@@ -198,6 +231,23 @@ std::string gallery_page(const std::vector<GalleryItem> &items, int page_index, 
         body += "\">Download</a></div>";
     }
     body += "</div>";
+    // What the ticks are for; a little script shows it only once one is ticked.
+    if (!items.empty())
+        body += "<div class=\"bar\" id=\"bar\"><b id=\"count\">Ticked captures</b>"
+                "<button type=\"button\" class=\"page\" id=\"all\">Select page</button>"
+                "<button name=\"act\" value=\"send\">Send</button>"
+                "<button name=\"act\" value=\"delete\" class=\"del\">Delete&hellip;</button>"
+                "</div><script>(function(){var t=[].slice.call(document.querySelectorAll('.tick'))"
+                ",b=document.getElementById('bar'),c=document.getElementById('count'),"
+                "a=document.getElementById('all');function u(){var n=t.filter(function(x){"
+                "return x.checked}).length;b.style.display=n?'':'none';c.textContent=n+' selected"
+                "';a.textContent=n==t.length?'Select none':'Select page'}t.forEach(function(x){"
+                "x.onchange=u});a.onclick=function(){var on=t.some(function(x){return !x.checked"
+                "});t.forEach(function(x){x.checked=on});u()};document.getElementById('act')."
+                "onsubmit=function(e){var s=e.submitter;if(s&&s.value=='delete'&&!confirm("
+                "'Ask the PS5 to delete these? You confirm there.'))e.preventDefault()};u()})()"
+                "</script>";
+    body += "</form>";
     if (pages > 1)
     {
         body += "<div class=\"pages\">";

@@ -338,6 +338,12 @@ the PC uses the console's buttons. On a keyboard: Space play/pause, ← / →
 10 s, `[` / `]` 30 s, `S` send, `T` send to…, `,` / `.` newer / older, Esc
 back. On a phone, the buttons under the picture.
 
+**Browser gallery** (Captures, on the browser page): tick captures to
+**Send** or **Delete…** them, or **Send all** what the game filter shows,
+every page of it, skipping what was already sent. A delete asked from the
+browser waits for **Delete** on the PS5 (PShare must be open), so nobody on
+your network can delete captures without you.
+
 ## Configuration
 
 Everything is editable in the app or from your phone. The file behind it is
