@@ -140,6 +140,23 @@ UploadOutcome upload_capture_with(const Config &config, const Destination &desti
                                   UploadProgress *progress, Transport transport, void *user,
                                   bool pause_between_tries);
 
+// Telegram albums. A "Send all" sends up to kAlbumSize screenshots for one
+// chat as a single sendMediaGroup message, each photo with its own caption,
+// instead of one message each. album_photo() says whether a capture can go in
+// one (a screenshot Telegram shows as a photo, within the size limit).
+constexpr std::size_t kAlbumSize = 10;
+bool album_photo(const Destination &destination, const MediaItem &item);
+bool plan_album(const Destination &destination, const std::vector<MediaItem> &items,
+                const std::vector<CaptionInfo> &captions, HttpRequest *request, std::string *error);
+// Sends the album with the usual retries; one outcome for all of it.
+UploadOutcome upload_album_with(const Config &config, const Destination &destination,
+                                const std::vector<MediaItem> &items,
+                                const std::vector<std::string> &games, UploadProgress *progress,
+                                Transport transport, void *user, bool pause_between_tries);
+UploadOutcome upload_album(const Config &config, const Destination &destination,
+                           const std::vector<MediaItem> &items,
+                           const std::vector<std::string> &games, UploadProgress *progress);
+
 // OneDrive takes several requests (sign in, open an upload session, send the
 // slices), so it has its own sequence; implemented in upload_onedrive.cpp.
 // `token_file` keeps the refresh token Microsoft hands back (Paths::onedrive_token).

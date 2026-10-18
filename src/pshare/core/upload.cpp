@@ -284,15 +284,12 @@ struct Attempt
     int attempts = 0;
 };
 
-Attempt send_with_retries(const Config &config, const Destination &destination,
-                          const MediaItem &item, const CaptionInfo &caption,
-                          const std::string &link, UploadProgress *progress, Transport transport,
-                          void *user, bool pause)
+// A planned request, tried again while the failure looks passing.
+Attempt send_planned(const Config &config, DestinationType type, const HttpRequest &request,
+                     const std::string &link, UploadProgress *progress, Transport transport,
+                     void *user, bool pause)
 {
     Attempt result;
-    HttpRequest request;
-    if (!plan_request(destination, item, caption, link, &request, &result.error))
-        return result;
     for (int attempt = 1; attempt <= config.retries; ++attempt)
     {
         result.attempts = attempt;
@@ -320,7 +317,7 @@ Attempt send_with_retries(const Config &config, const Destination &destination,
         }
         else
         {
-            verdict = read_response(destination.type, http.status, http.body);
+            verdict = read_response(type, http.status, http.body);
         }
         if (verdict.ok)
         {
@@ -348,7 +345,88 @@ Attempt send_with_retries(const Config &config, const Destination &destination,
     }
     return result;
 }
+
+Attempt send_with_retries(const Config &config, const Destination &destination,
+                          const MediaItem &item, const CaptionInfo &caption,
+                          const std::string &link, UploadProgress *progress, Transport transport,
+                          void *user, bool pause)
+{
+    HttpRequest request;
+    Attempt result;
+    if (!plan_request(destination, item, caption, link, &request, &result.error))
+        return result;
+    return send_planned(config, destination.type, request, link, progress, transport, user, pause);
+}
 } // namespace
+
+bool album_photo(const Destination &destination, const MediaItem &item)
+{
+    const std::uint64_t limit = destination.size_limit();
+    return destination.type == DestinationType::telegram && !item.video() &&
+           item.size <= kTelegramPhotoLimit && (limit == 0 || item.size <= limit);
+}
+
+bool plan_album(const Destination &destination, const std::vector<MediaItem> &items,
+                const std::vector<CaptionInfo> &captions, HttpRequest *request, std::string *error)
+{
+    const auto fail = [&](const char *why)
+    {
+        if (error)
+            *error = why;
+        return false;
+    };
+    if (!destination.configured())
+        return fail("Telegram bot token or chat_id is not set");
+    if (items.size() < 2 || items.size() > kAlbumSize || captions.size() != items.size())
+        return fail("An album holds 2 to 10 photos");
+    HttpRequest out;
+    out.headers.push_back("Connection: close");
+    out.url = "https://api.telegram.org/bot" + destination.token + "/sendMediaGroup";
+    out.parts.push_back(text_part("chat_id", destination.chat_id));
+    const std::string pattern =
+        destination.message.empty() ? default_caption(destination.type) : destination.message;
+    // Each photo is a part of its own, which the media list names as attach://pN.
+    std::string media = "[";
+    for (std::size_t i = 0; i < items.size(); ++i)
+    {
+        if (!album_photo(destination, items[i]))
+            return fail("Only screenshots go in an album");
+        const std::string name = "p" + std::to_string(i);
+        media += std::string(i == 0 ? "" : ",") + R"({"type":"photo","media":"attach://)" + name +
+                 R"(","caption":")" +
+                 json_escape(clip(expand_caption(pattern, captions[i]), 1024)) + R"("})";
+        out.parts.push_back(file_part(name, items[i]));
+        out.upload_size += items[i].size;
+    }
+    out.parts.insert(out.parts.begin() + 1, text_part("media", media + "]"));
+    *request = std::move(out);
+    return true;
+}
+
+UploadOutcome upload_album_with(const Config &config, const Destination &destination,
+                                const std::vector<MediaItem> &items,
+                                const std::vector<std::string> &games, UploadProgress *progress,
+                                Transport transport, void *user, bool pause_between_tries)
+{
+    UploadOutcome outcome;
+    outcome.destination = destination.id;
+    std::vector<CaptionInfo> captions;
+    for (std::size_t i = 0; i < items.size(); ++i)
+        captions.push_back(caption_info(items[i], i < games.size() ? games[i] : std::string()));
+    HttpRequest request;
+    if (!plan_album(destination, items, captions, &request, &outcome.error))
+        return outcome;
+    if (progress != nullptr)
+        progress->stage = 1;
+    const Attempt sent = send_planned(config, destination.type, request, {}, progress, transport,
+                                      user, pause_between_tries);
+    outcome.ok = sent.ok;
+    outcome.attempts = sent.attempts;
+    outcome.error = sent.error;
+    if (progress != nullptr)
+        progress->stage = 0;
+    return outcome;
+}
 
 UploadOutcome upload_capture_with(const Config &config, const Destination &destination,
                                   const MediaItem &item, const std::string &game,
@@ -443,6 +521,15 @@ HttpResult curl_transport(const HttpRequest &request, UploadProgress *progress, 
     return perform_request(request, progress, timeout);
 }
 } // namespace
+
+UploadOutcome upload_album(const Config &config, const Destination &destination,
+                           const std::vector<MediaItem> &items,
+                           const std::vector<std::string> &games, UploadProgress *progress)
+{
+    int timeout = 900;
+    return upload_album_with(config, destination, items, games, progress, curl_transport, &timeout,
+                             true);
+}
 
 UploadOutcome upload_capture(const Config &config, const Destination &destination,
                              const MediaItem &item, const std::string &game,
