@@ -80,7 +80,10 @@ it finishes after the app closes. pshared takes its queue one job at a time,
 so `CANCEL` stops the rest of the batch. The app follows it through
 `STATUS` (`job=`) and asks `RESULT` about the last job to know when it is
 over, then counts what was sent from the history. A capture is deleted only
-after it was sent successfully. Rate limits (HTTP 429) are waited out for as
+after it was sent successfully. pshared, a payload, may not be allowed to
+delete captures; then it lists them in `/data/pshare/delete-after-send.txt`
+and the app, which can, deletes them when it starts, on its regular rescan
+and when the batch ends. Rate limits (HTTP 429) are waited out for as
 long as the service asks (`retry_after` from Telegram and Discord).
 
 When pshared cannot run (no loader on 9021, the ELF missing) the app sends

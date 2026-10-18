@@ -129,7 +129,7 @@ struct BatchTally
     int sent = 0;
     int failed = 0;
     int deleted = 0;
-    int kept = 0; // sent, but deleting failed
+    int waiting = 0; // sent, and left for the app to delete
 };
 
 struct Shared
@@ -341,8 +341,12 @@ std::string handle_command(std::string_view line)
     }
     if (verb == "QUEUE")
     {
-        // <path>, <destination>\t<path> or <destination>\t<path>\t<flags>.
-        const std::vector<std::string> fields = split(argument, '\t');
+        // <path>, <destination>\t<path> or <destination>\t<path>\t<flags>. Split
+        // before trimming: an empty destination leaves the line starting with a tab.
+        const std::vector<std::string> fields =
+            split(space == std::string::npos ? std::string_view()
+                                             : std::string_view(text).substr(space + 1),
+                  '\t');
         const std::string destination =
             fields.size() >= 2 ? std::string(trim(fields[0])) : std::string();
         const std::string path = std::string(trim(fields.size() >= 2 ? fields[1] : argument));
@@ -1226,17 +1230,22 @@ int run()
                 outcome.error = "The capture is gone";
             if (outcome.destination.empty())
                 outcome.destination = job.destination;
-            // Deleted only once it has really gone somewhere.
-            bool kept = false;
+            // Deleted only once it has really gone somewhere. A payload may not
+            // be allowed to delete captures; then the app does it when it runs.
+            bool waiting = false;
             if (outcome.ok && job.delete_after)
             {
                 std::string why;
                 if (delete_capture(job.path, paths.photo_root, paths.video_root, &why))
+                {
                     g_log.write("deleted %s after sending it", item.file.c_str());
+                }
                 else
                 {
-                    kept = true;
-                    g_log.write("could not delete %s: %s", item.file.c_str(), why.c_str());
+                    waiting = add_pending_delete(paths, job.path);
+                    g_log.write("could not delete %s (%s); %s", item.file.c_str(), why.c_str(),
+                                waiting ? "PShare deletes it when it runs"
+                                        : "and could not list it for PShare either");
                 }
             }
             std::string answer = outcome.ok ? "ok " : "failed ";
@@ -1257,7 +1266,7 @@ int run()
                     BatchTally &tally = g_shared.batch;
                     ++(outcome.ok ? tally.sent : tally.failed);
                     if (outcome.ok && job.delete_after)
-                        ++(kept ? tally.kept : tally.deleted);
+                        ++(waiting ? tally.waiting : tally.deleted);
                 }
                 batch_over =
                     g_shared.manual.empty() && g_shared.batch.sent + g_shared.batch.failed > 0;
@@ -1275,8 +1284,9 @@ int run()
                     text += ", " + std::to_string(finished.failed) + " failed";
                 if (finished.deleted > 0)
                     text += ", " + std::to_string(finished.deleted) + " deleted from the console";
-                if (finished.kept > 0)
-                    text += ", " + std::to_string(finished.kept) + " could not be deleted";
+                if (finished.waiting > 0)
+                    text +=
+                        ", " + std::to_string(finished.waiting) + " to delete when PShare opens";
                 notify(text);
             }
         }

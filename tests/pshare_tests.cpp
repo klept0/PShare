@@ -935,6 +935,29 @@ TEST(folder_copies)
     CHECK_EQ(safe_name(".."), "Captures");
 }
 
+TEST(pending_deletes_are_finished_by_the_app)
+{
+    const std::string root = scratch() + "/pending";
+    std::system(("mkdir -p '" + root + "/photo/PPSA01234/a' '" + root + "/video'").c_str());
+    Paths paths;
+    paths.data_root = root;
+    paths.photo_root = root + "/photo";
+    paths.video_root = root + "/video";
+    const std::string shot = root + "/photo/PPSA01234/a/20261009_183501_00000001.jpg";
+    write_file(shot, "x");
+    write_file(root + "/photo/PPSA01234/a/20261009_183501_00000001.dat", "d");
+    CHECK(add_pending_delete(paths, shot));
+    CHECK(add_pending_delete(paths, root + "/photo/PPSA01234/a/gone.jpg")); // already gone
+    CHECK(add_pending_delete(paths, "/etc/passwd"));                        // not a capture
+    CHECK_EQ(delete_pending_captures(paths), 2);
+    CHECK(!file_exists(shot));
+    CHECK(!file_exists(root + "/photo/PPSA01234/a"));
+    // Nothing is left to retry: what went is done, and /etc/passwd is not a capture.
+    CHECK(file_exists("/etc/passwd"));
+    CHECK(!file_exists(paths.pending_deletes()));
+    CHECK_EQ(delete_pending_captures(paths), 0);
+}
+
 TEST(also_send_round_trip)
 {
     IniDocument document;

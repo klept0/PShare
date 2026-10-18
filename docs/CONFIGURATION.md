@@ -96,6 +96,7 @@ Written by the app for its own choices:
 | `history.tsv` | one line per upload, from the app and from pshared |
 | `pshared.log` | pshared's log |
 | `pshared-seen.txt` | captures pshared has already handled |
+| `delete-after-send.txt` | captures sent with "Delete from the console once sent" that pshared could not delete; PShare deletes them when it runs |
 | `onedrive-<id>.token` | the newest refresh token Microsoft handed back for that OneDrive destination; delete it to go back to the one in the config |
 | `thumbs/` | the app's thumbnail cache; safe to delete |
 
