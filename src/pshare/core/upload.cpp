@@ -485,8 +485,31 @@ UploadOutcome upload_capture_with(const Config &config, const Destination &desti
         }
         if (progress != nullptr)
             progress->stage = 2;
-        const Attempt hosted = send_with_retries(config, *fallback, item, caption, {}, progress,
-                                                 transport, user, pause_between_tries);
+        Attempt hosted;
+        if (fallback->local() || fallback->type == DestinationType::onedrive)
+        {
+            // A drive, a share or OneDrive keeps it; the post says where it went
+            // (OneDrive with a link the chat can open).
+            const UploadOutcome kept =
+                fallback->type == DestinationType::folder
+                    ? copy_to_folder(*fallback, Paths{}, item, game, progress)
+                : fallback->type == DestinationType::smb
+                    ? copy_to_share(*fallback, item, game, progress)
+                    : send_to_onedrive(config, *fallback, item, game, progress, transport, user,
+                                       pause_between_tries, Paths{}.onedrive_token(fallback->id),
+                                       true);
+            hosted.ok = kept.ok;
+            hosted.attempts = kept.attempts;
+            hosted.error = kept.error;
+            hosted.link = fallback->local() ? "Too big to attach here; saved to " +
+                                                  fallback->display_name() + " (" + item.file + ")"
+                                            : kept.link;
+        }
+        else
+        {
+            hosted = send_with_retries(config, *fallback, item, caption, {}, progress, transport,
+                                       user, pause_between_tries);
+        }
         outcome.attempts += hosted.attempts;
         if (!hosted.ok)
         {

@@ -580,6 +580,29 @@ TEST(big_files_go_through_the_fallback)
     }
 }
 
+TEST(big_files_can_go_to_a_drive)
+{
+    // Discord's fallback is a folder: the clip is copied there, and the post
+    // says where instead of carrying a link.
+    Config config = ready_config();
+    const std::string root = scratch() + "/fallback";
+    std::system(("mkdir -p '" + root + "/video/PS5/PPSA01234' '" + root + "/drive'").c_str());
+    const std::string file = root + "/video/PS5/PPSA01234/20261009_183600_00000002.webm";
+    write_file(file, std::string(4000, 'v'));
+    MediaItem clip = sample_item(file, 30ull << 20); // too big for Discord, as far as it knows
+    Destination &usb = *config.find("usb");
+    usb.enabled = true;
+    usb.path = root + "/drive";
+    config.find("discord")->fallback = "usb";
+    FakeServer server;
+    const UploadOutcome outcome = upload_capture_with(
+        config, *config.find("discord"), clip, "Astro", nullptr, fake_transport, &server, false);
+    CHECK(outcome.ok);
+    CHECK(file_exists(root + "/drive/PShare/Astro/20261009_183600_00000002.webm"));
+    CHECK_EQ(server.urls.size(), 1u); // only Discord, with the note
+    CHECK(outcome.link.find("saved to USB drive") != std::string::npos);
+}
+
 TEST(retries_transient_failures)
 {
     Config config = ready_config();
@@ -630,15 +653,26 @@ HttpResult fake_drive(const HttpRequest &request, UploadProgress *, void *user)
     {
         result.body = R"({"uploadUrl":"https://up.example/s1"})";
     }
-    else if (request.raw_offset + request.raw_length < drive->size)
+    else if (request.method == "PUT" && request.raw_offset + request.raw_length < drive->size)
     {
         result.status = 202;
         result.body = R"({"nextExpectedRanges":["0-"]})";
     }
-    else
+    else if (request.url.find("/createLink") != std::string::npos)
     {
         result.status = 201;
-        result.body = R"({"id":"1","name":"x.webm","webUrl":"https://onedrive.live.com/x"})";
+        result.body = R"({"id":"perm","link":{"type":"view","webUrl":"https://1drv.ms/v/share"}})";
+    }
+    else if (request.url.find("discord.com") != std::string::npos)
+    {
+        result.body = R"({"attachments":[]})";
+    }
+    else
+    {
+        // Graph can name who made it, and its id, before the item's own id.
+        result.status = 201;
+        result.body = R"({"createdBy":{"user":{"id":"someone"}},"id":"ITEM!1","name":"x.webm",)"
+                      R"("webUrl":"https://onedrive.live.com/x"})";
     }
     return result;
 }
@@ -720,6 +754,30 @@ TEST(onedrive_signs_in_and_sends_slices)
     std::string error;
     CHECK(!plan_request(drive, clip, caption_info(clip, "Astro"), {}, &request, &error));
 
+    // A clip too big for Discord goes to OneDrive, and Discord gets a link anyone can open.
+    drive.token = "r1";
+    config.find("discord")->fallback = "onedrive";
+    const MediaItem big = sample_item(clip.path, 30ull << 20);
+    server = FakeDrive{};
+    server.size = big.size;
+    outcome = upload_capture_with(config, *config.find("discord"), big, "Astro", nullptr,
+                                  fake_drive, &server, false);
+    CHECK(outcome.ok);
+    CHECK_EQ(outcome.link, "https://1drv.ms/v/share");
+    bool linked = false;
+    for (const HttpRequest &each : server.requests)
+    {
+        if (each.url.find("/items/ITEM%211/createLink") != std::string::npos)
+            linked = true;
+        if (each.url.find("discord.com") != std::string::npos)
+            CHECK(part(each, "payload_json")->value.find("https://1drv.ms/v/share") !=
+                  std::string::npos);
+    }
+    CHECK(linked);
+    std::string top;
+    CHECK(json_top_string(R"({"a":{"id":"inner"},"id":"outer"})", "id", &top) && top == "outer");
+    CHECK(!json_top_string(R"({"a":{"id":"inner"}})", "id", &top));
+
     IniDocument document;
     document.parse(default_config_text());
     store_config(config, &document);
@@ -728,7 +786,7 @@ TEST(onedrive_signs_in_and_sends_slices)
     Config back;
     load_config(again, &back, nullptr);
     CHECK_EQ(back.find("onedrive")->client_id, "app-1");
-    CHECK_EQ(back.find("onedrive")->token, "r9");
+    CHECK_EQ(back.find("onedrive")->token, "r1");
     CHECK_EQ(back.find("onedrive")->path, "PShare");
     CHECK_EQ(back.find("usb")->path, "usb");
 

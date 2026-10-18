@@ -331,6 +331,36 @@ bool json_find_bool(std::string_view json, std::string_view key, bool *value)
     return false;
 }
 
+bool json_top_string(std::string_view json, std::string_view key, std::string *value)
+{
+    int depth = 0;
+    for (std::size_t i = 0; i < json.size(); ++i)
+    {
+        const char c = json[i];
+        if (c == '{' || c == '[')
+            ++depth;
+        else if (c == '}' || c == ']')
+            --depth;
+        else if (c == '"')
+        {
+            // A string: a key of the outer object when a ':' follows at depth 1.
+            std::size_t end = i + 1;
+            while (end < json.size() && json[end] != '"')
+                end += json[end] == '\\' ? 2 : 1;
+            if (end >= json.size())
+                return false;
+            std::size_t after = end + 1;
+            while (after < json.size() && is_space(json[after]))
+                ++after;
+            if (depth == 1 && after < json.size() && json[after] == ':' &&
+                json.substr(i + 1, end - i - 1) == key)
+                return json_find_string(json.substr(i), key, value);
+            i = end;
+        }
+    }
+    return false;
+}
+
 bool json_find_number(std::string_view json, std::string_view key, double *value)
 {
     std::size_t p = after_key(json, key, 0);

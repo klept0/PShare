@@ -41,7 +41,7 @@ Keys every destination accepts:
 | `enabled` | `false` hides it without deleting it |
 | `message` | caption template (see placeholders below) |
 | `max_mb` | files bigger than this go to `fallback` instead, and this destination gets the link. At most the service's own limit: Discord 100 (a server at boost level 3), Telegram 50, catbox 200, Litterbox 1024 |
-| `fallback` | the destination id for files over `max_mb` |
+| `fallback` | the destination id for files over `max_mb`: a file host or custom server (its link is posted), `onedrive` (a view-only share link anyone can open is posted), or a `folder` / `smb` destination (the file is copied there and the post says where) |
 
 Placeholders in `message`: `{type}` (Screenshot / Clip), `{game}`,
 `{title_id}`, `{date}`, `{time}`, `{file}`, `{size}` and `{link}` (the
