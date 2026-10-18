@@ -465,6 +465,20 @@ TEST(reads_answers)
     CHECK(v.ok && v.link == "https://h/1");
     v = read_response(DestinationType::http, 503, "busy");
     CHECK(!v.ok && v.retry);
+    // Rate limits say how long to wait: Telegram in whole seconds, Discord in fractions.
+    v = read_response(DestinationType::telegram, 429,
+                      R"({"ok":false,"error_code":429,"description":"Too Many Requests: retry )"
+                      R"(after 35","parameters":{"retry_after":35}})");
+    CHECK(!v.ok && v.retry && v.retry_after == 36);
+    v = read_response(
+        DestinationType::discord, 429,
+        R"({"message":"You are being rate limited.","retry_after":1.5,"global":false})");
+    CHECK(v.retry && v.retry_after == 2);
+    v = read_response(DestinationType::discord, 500, R"({"retry_after":9})");
+    CHECK(v.retry && v.retry_after == 0);
+    double number = 0.0;
+    CHECK(json_find_number(R"({"a":"x","n":12.25})", "n", &number) && number == 12.25);
+    CHECK(!json_find_number(R"({"n":"12"})", "n", &number));
 }
 
 struct FakeServer

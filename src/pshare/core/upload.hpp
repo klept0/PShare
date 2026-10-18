@@ -89,6 +89,7 @@ struct ResponseVerdict
 {
     bool ok = false;
     bool retry = false;
+    int retry_after = 0; // a rate limit: seconds the service asks to wait (Telegram, Discord)
     std::string link;
     std::string error;
 };
