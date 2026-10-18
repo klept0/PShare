@@ -100,8 +100,9 @@ phone**). Open the one you want:
 
 Discord takes files up to 20 MB on servers without boosts, 50 MB at boost
 level 2 and 100 MB at level 3. Set **Size limit** to match your server and
-pick a **Big files go to** host (catbox by default) so bigger clips are
-uploaded there and Discord gets the link.
+pick where **Big files go to**: a file host (catbox by default) or OneDrive,
+and Discord gets a link anyone can open; or your Mac, PC or a USB drive, and
+Discord gets a note saying where the clip was saved.
 </details>
 
 <details>

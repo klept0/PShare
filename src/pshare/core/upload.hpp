@@ -142,9 +142,12 @@ UploadOutcome upload_capture_with(const Config &config, const Destination &desti
 // OneDrive takes several requests (sign in, open an upload session, send the
 // slices), so it has its own sequence; implemented in upload_onedrive.cpp.
 // `token_file` keeps the refresh token Microsoft hands back (Paths::onedrive_token).
+// With `share_link` (OneDrive holding a file too big for a chat) the link is a
+// view-only one anyone can open, so the chat can; otherwise the owner's own.
 UploadOutcome send_to_onedrive(const Config &config, const Destination &destination,
                                const MediaItem &item, const std::string &game,
                                UploadProgress *progress, Transport transport, void *user,
-                               bool pause_between_tries, const std::string &token_file);
+                               bool pause_between_tries, const std::string &token_file,
+                               bool share_link = false);
 
 } // namespace pshare

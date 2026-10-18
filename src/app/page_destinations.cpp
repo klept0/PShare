@@ -437,9 +437,10 @@ class DestinationsPage final : public Page
             int chosen = 0;
             for (const Destination &other : config.destinations)
             {
-                if (other.id == d->id || (other.type != DestinationType::catbox &&
-                                          other.type != DestinationType::litterbox &&
-                                          other.type != DestinationType::http))
+                // Hosts post a link; OneDrive a share link; a drive or share keeps
+                // the file and the post says where. Not another chat.
+                if (other.id == d->id || other.type == DestinationType::discord ||
+                    other.type == DestinationType::telegram)
                     continue;
                 if (other.id == d->fallback)
                     chosen = static_cast<int>(fallbacks.size());
