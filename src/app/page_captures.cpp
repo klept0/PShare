@@ -236,7 +236,8 @@ class CapturesPage final : public Page
         }
         else if (!view_.empty() && selecting_)
         {
-            add(ui::Button::cross, "Select");
+            select_hint_ = "Select (" + std::to_string(chosen_.size()) + ")";
+            add(ui::Button::cross, select_hint_.c_str());
             add(ui::Button::square, "Send selected");
             add(ui::Button::triangle,
                 chosen_.size() == paths_.size() ? "Select none" : "Select all");
@@ -661,21 +662,37 @@ class CapturesPage final : public Page
         gfx::DrawList &list = scene.list;
         tabs_.draw(scene);
         draw_buttons(scene, context);
-        // What is shown, on the right of the tabs.
-        std::string summary;
+        // What is shown, right of the buttons: the longest wording that fits the
+        // room they leave (wide tab counts and a long game name leave little),
+        // else nothing; while selecting, the hint bar has the count too.
+        std::vector<std::string> wordings;
+        const std::string shown = std::to_string(view_.size());
         if (context.model.scanning() && !context.model.scanned_once())
-            summary = "Looking for captures...";
+        {
+            wordings = {"Looking for captures...", "Looking..."};
+        }
+        else if (selecting_)
+        {
+            const std::string chosen = std::to_string(chosen_.size());
+            wordings = {chosen + " of " + shown + " selected", chosen + " selected", chosen};
+        }
         else
-            summary = std::to_string(view_.size()) + (view_.size() == 1 ? " capture" : " captures");
-        int sent = 0;
-        for (int index : view_)
-            sent += context.model.captures()[static_cast<std::size_t>(index)].uploaded ? 1 : 0;
-        if (!view_.empty())
-            summary += " · " + std::to_string(sent) + " sent";
-        if (selecting_)
-            summary = std::to_string(chosen_.size()) + " selected · " + summary;
-        ui::text(list, context.fonts.semibold, summary, area_.x + area_.w, area_.y + 38.0f, 22.0f,
-                 rgb(palette::mist), gfx::Align::right);
+        {
+            int sent = 0;
+            for (int index : view_)
+                sent += context.model.captures()[static_cast<std::size_t>(index)].uploaded ? 1 : 0;
+            const std::string captures = shown + (view_.size() == 1 ? " capture" : " captures");
+            wordings = {captures + " \xC2\xB7 " + std::to_string(sent) + " sent", captures, shown};
+        }
+        const gfx::Rect order = button_rect(context, 1);
+        const float room = area_.x + area_.w - (order.x + order.w + 24.0f);
+        for (const std::string &wording : wordings)
+            if (context.fonts.semibold.measure(wording, 22.0f) <= room)
+            {
+                ui::text(list, context.fonts.semibold, wording, area_.x + area_.w, area_.y + 38.0f,
+                         22.0f, rgb(palette::mist), gfx::Align::right);
+                break;
+            }
 
         if (view_.empty())
         {
@@ -1548,6 +1565,7 @@ class CapturesPage final : public Page
     // Selecting captures (Options > Select captures).
     bool selecting_ = false;
     std::set<std::string> chosen_;
+    mutable std::string select_hint_; // "Select (12)": the hint bar keeps a pointer
     // The "Send ..." sheet and what it is about.
     ui::Sheet bulk_;
     ui::Form bulk_form_;
