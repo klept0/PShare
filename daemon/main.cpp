@@ -1007,6 +1007,11 @@ void setup_thread(const Paths &paths, int port)
                 usleep(1000000);
                 continue;
             }
+            // After a failure the log said so; say it is fixed too, so the
+            // error does not read as lasting (it is usually the replaced
+            // pshared still letting go of the port).
+            if (listen_failed)
+                g_log.write("setup page open on port %d", port);
             listen_failed = false;
             socket_timeouts(listener, 1000); // accept wakes up to check the clock
             std::lock_guard<std::mutex> lock(g_shared.mutex);
