@@ -133,6 +133,7 @@ No proprietary runtime module, encryption key, or game file is included.
 | [blackbearreloaded/ps5-native-app-boilerplate](https://github.com/blackbearreloaded/ps5-native-app-boilerplate) | Build pipeline, runtime shim, Lapy client, `console_curl` | GPL-3.0-or-later |
 | [StonedModder/Porkfolio](https://github.com/StonedModder/Porkfolio) | Where the PS5 keeps captures (documentation only) | see upstream |
 | [nothings/stb](https://github.com/nothings/stb) | `stb_image`, `stb_image_write` (thumbnails; Telegram-sized photo copies of big screenshots, in the app and pshared) | MIT / public domain |
+| [jxrlib](https://github.com/4creators/jxrlib) (Microsoft, commit f752187) | JPEG XR decoding: the PS5's HDR screenshots, tone-mapped to SDR for thumbnails, the browser and photo copies (app, pshared and tests). Unchanged in `third_party/jxrlib`, built through `src/third_party/jxrlib` | BSD 2-Clause |
 | [nayuki/QR-Code-generator](https://github.com/nayuki/QR-Code-generator) | `qrcodegen` (links and the phone page as QR codes) | MIT |
 | libcurl, OpenSSL, zlib, zstd, libpsl via [PacBrew](https://github.com/ps5-payload-dev/pacbrew-repo) | HTTPS uploads in the app and in pshared | curl, Apache-2.0, zlib, BSD, MIT |
 | [FFmpeg](https://ffmpeg.org/) 7.0 (libavformat, libavcodec, libswscale, libswresample, libavutil) via PacBrew, built `--enable-gpl --enable-libx264` with bzip2, xz, libiconv | Clip playback and clip thumbnails in the app | GPL-2.0-or-later as built (x264), linked into a GPL-3.0-or-later app |

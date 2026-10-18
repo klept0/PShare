@@ -56,6 +56,11 @@ const char *MediaItem::content_type() const
     return "application/octet-stream";
 }
 
+bool MediaItem::jxr() const
+{
+    return ends_with_ci(file, ".jxr");
+}
+
 bool MediaItem::web_image() const
 {
     return ends_with_ci(file, ".jpg") || ends_with_ci(file, ".jpeg") || ends_with_ci(file, ".png");

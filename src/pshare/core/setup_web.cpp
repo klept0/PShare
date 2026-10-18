@@ -217,10 +217,10 @@ std::string gallery_page(const std::vector<GalleryItem> &items, int page_index, 
             body += html_escape(source + "#t=0.5");
             body += "\"></video><span class=\"play\">&#9654;</span>";
         }
-        else if (item.picture)
+        else if (item.picture || item.hdr)
         {
             body += "<img loading=\"lazy\" alt=\"\" src=\"";
-            body += html_escape(source);
+            body += html_escape(item.hdr ? source + "&jpeg=480" : source);
             body += "\">";
         }
         else
@@ -424,8 +424,9 @@ std::string view_page(const ViewInfo &info)
     else if (item.video)
         media = "<video id=\"media\" playsinline preload=\"auto\" src=\"" + html_escape(source) +
                 "\"></video><button class=\"big\" id=\"big\" aria-label=\"Play\">&#9654;</button>";
-    else if (item.picture)
-        media = "<img id=\"media\" alt=\"\" src=\"" + html_escape(source) + "\">";
+    else if (item.picture || item.hdr)
+        media = "<img id=\"media\" alt=\"\" src=\"" +
+                html_escape(item.hdr ? source + "&jpeg=1920" : source) + "\">";
     else
         media = "<p class=\"blank\"><b>An HDR screenshot (JPEG XR).</b><br>Browsers can't show "
                 "this format; download it, or send it, to open it elsewhere.</p>";
