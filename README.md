@@ -154,18 +154,20 @@ for it. Do this once, on a PC or Mac:
 3. Open **Authentication**, set **Allow public client flows** to **Yes** and
    save.
 4. In a terminal (on Windows type `curl.exe`, not `curl`), ask for a sign-in
-   code, with your client ID:
+   code. Replace `YOUR_CLIENT_ID` with your client ID, with no brackets or
+   quotes around it:
 
    ```sh
-   curl -d client_id=<client ID> -d "scope=Files.ReadWrite offline_access" https://login.microsoftonline.com/common/oauth2/v2.0/devicecode
+   curl -d client_id=YOUR_CLIENT_ID -d "scope=Files.ReadWrite offline_access" https://login.microsoftonline.com/common/oauth2/v2.0/devicecode
    ```
 
 5. Open [microsoft.com/devicelogin](https://microsoft.com/devicelogin), enter
    the `user_code` from the answer, sign in and accept. Then, within 15
-   minutes, with the `device_code` from the same answer:
+   minutes, replace `YOUR_DEVICE_CODE` with the `device_code` from the same
+   answer:
 
    ```sh
-   curl -d client_id=<client ID> -d grant_type=urn:ietf:params:oauth:grant-type:device_code -d device_code=<device_code> https://login.microsoftonline.com/common/oauth2/v2.0/token
+   curl -d client_id=YOUR_CLIENT_ID -d grant_type=urn:ietf:params:oauth:grant-type:device_code -d device_code=YOUR_DEVICE_CODE https://login.microsoftonline.com/common/oauth2/v2.0/token
    ```
 
 6. Copy the `refresh_token` value (everything between its quotes). On the
