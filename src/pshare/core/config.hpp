@@ -50,6 +50,12 @@ struct Paths
     {
         return data_root + "/thumbs";
     }
+    // Captures sent with "delete once sent" that pshared could not delete; the
+    // app, which can, finishes them (media.hpp, delete_pending_captures).
+    std::string pending_deletes() const
+    {
+        return data_root + "/delete-after-send.txt";
+    }
     // The newest OneDrive refresh token for a destination (upload_onedrive.cpp).
     std::string onedrive_token(const std::string &id) const
     {

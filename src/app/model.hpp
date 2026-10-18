@@ -176,6 +176,9 @@ class Model
     void mark_unreadable_asked(const std::vector<std::string> &paths);
     // Deletes them (and the files beside them), then rescans; posts EventKind::deleted.
     void delete_captures(std::vector<std::string> paths);
+    // Deletes what pshared sent with "delete once sent" but was not allowed to
+    // delete itself (Paths::pending_deletes); posts EventKind::deleted when any went.
+    void delete_pending();
 
     // ---- configuration ----
     const Config &config() const

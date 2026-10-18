@@ -68,6 +68,7 @@ void Model::start()
         for (Thread &relay : relay_threads_)
             relay.start([this] { relay_loop(); }, 256u << 10);
     rescan();
+    delete_pending(); // sent while the app was closed
 }
 
 // Since a console restart, payloads (pshared, an FTP server) can read video
@@ -225,6 +226,7 @@ void Model::status_loop()
                 {
                     if (!model.scanning_)
                         model.rescan();
+                    model.delete_pending();
                 });
         }
         for (int i = 0; i < 10 && !quit_.load(); ++i)
@@ -571,6 +573,31 @@ void Model::delete_captures(std::vector<std::string> paths)
         });
 }
 
+void Model::delete_pending()
+{
+    if (environment_.demo || !environment_.elevated)
+        return;
+    const Paths where = environment_.paths;
+    io(
+        [this, where]
+        {
+            const int deleted = delete_pending_captures(where);
+            if (deleted == 0)
+                return;
+            post(
+                [deleted](Model &model)
+                {
+                    ModelEvent event;
+                    event.kind = EventKind::deleted;
+                    event.title = "Deleted " + std::to_string(deleted) +
+                                  (deleted == 1 ? " capture" : " captures");
+                    event.detail = "Sent with \"Delete once sent\"";
+                    model.events_.push_back(std::move(event));
+                    model.rescan();
+                });
+        });
+}
+
 void Model::mark_uploads()
 {
     std::map<std::string, const HistoryEntry *> last;
@@ -904,14 +931,17 @@ void Model::finish_batch(const std::string &note)
                   (total == 1 ? " capture" : " captures");
     event.detail = !note.empty()                     ? note
                    : sent < total                    ? "The ones that failed are in History"
-                   : batch_.delete_after && sent > 0 ? "and deleted them from the console"
+                   : batch_.delete_after && sent > 0 ? "each deleted from the console once sent"
                                                      : "to " + batch_.destination_name;
     events_.push_back(std::move(event));
     const bool deleted = batch_.delete_after;
     batch_ = Batch{};
     batch_last_ = 0;
     if (deleted)
+    {
         rescan();
+        delete_pending(); // what pshared sent but could not delete
+    }
 }
 
 void Model::cancel_upload()
